@@ -5,7 +5,7 @@
  * Page paths are real spiralny.com pages; searches and campaign names are
  * illustrative only.
  */
-import { bucketKeyFor, eachDay } from "./range";
+import { bucketKeyFor, eachDay, sumIntoBuckets } from "./range";
 import type {
   CampaignRow,
   DailySearchPoint,
@@ -73,7 +73,8 @@ function dayNumbers(day: string, anchor: string): DayNumbers {
   return {
     leads,
     signups,
-    unfinished: Math.max(0, Math.round((leads - signups) * (0.45 + 0.25 * rand(`${day}:unfinished`)))),
+    // Same definition as the real numbers: started a form but never completed one.
+    unfinished: leads - signups,
     visits: count(day, "visits", 165, anchor),
     googleClicks: count(day, "clicks", 41, anchor),
     impressions: count(day, "impressions", 1750, anchor),
@@ -104,6 +105,7 @@ export function sampleKpis(range: DateRange): Kpi[] {
     ...m,
     value: sumDays(current, range.end, m.key),
     previous: sumDays(previous, range.end, m.key),
+    trend: sumIntoBuckets(range, current.map((d) => [d, dayNumbers(d, range.end)[m.key]] as [string, number])),
     origin: "sample",
   }));
 }

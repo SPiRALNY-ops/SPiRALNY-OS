@@ -46,6 +46,20 @@ describe("sample data", () => {
     );
     expect(bucketTotal).toBe(leads);
   });
+
+  it("gives every number a trend that adds up to it, one point per bucket", () => {
+    for (const key of ["7d", "28d", "90d", "12m"] as const) {
+      const r = resolveRange(key, TODAY);
+      const kpis = sampleKpis(r);
+      for (const k of kpis) {
+        expect(k.trend).toHaveLength(r.buckets.length);
+        expect(k.trend.reduce((a, b) => a + b, 0)).toBe(k.value);
+      }
+      const v = (key: string) => kpis.find((k) => k.key === key)!.value;
+      // Same definition as the real numbers: started a form but never completed one.
+      expect(v("unfinished")).toBe(v("leads") - v("signups"));
+    }
+  });
 });
 
 describe("buildAnalytics", () => {
@@ -91,6 +105,17 @@ describe("buildAnalytics", () => {
     expect(kpi("unfinished")).toMatchObject({ origin: "real", value: 1 });
     expect(kpi("googleClicks")).toMatchObject({ origin: "real", value: 17 });
     expect(kpi("visits").origin).toBe("sample"); // GA4 not synced yet
+
+    // Trend lines add up to their numbers. Someone who started on Nov 10 and finished on
+    // Nov 11 is not "unfinished" on either day, so that line never dips below zero.
+    const at = (key: string, day: string) => kpi(key).trend[view.range.buckets.findIndex((b) => b.key === day)];
+    for (const key of ["leads", "signups", "unfinished", "googleClicks"]) {
+      expect(kpi(key).trend.reduce((a, b) => a + b, 0)).toBe(kpi(key).value);
+      expect(kpi(key).trend.every((n) => n >= 0)).toBe(true);
+    }
+    expect([at("leads", "2026-11-10"), at("leads", "2026-11-12")]).toEqual([1, 1]);
+    expect([at("unfinished", "2026-11-10"), at("unfinished", "2026-11-12")]).toEqual([0, 1]);
+    expect(at("googleClicks", "2026-11-10")).toBe(12);
     expect(kpi("replies").origin).toBe("sample");
 
     // Each person counted once, in the bucket of their first entry, under their source.

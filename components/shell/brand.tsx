@@ -1,32 +1,38 @@
 import Image from "next/image";
 import Link from "next/link";
 
-/** Spiral NY logo from spiralny.com, with the product name under it. */
-export function BrandLogo() {
+/**
+ * The SPiRALNY logo exactly as spiralny.com shows it in its charcoal header bar
+ * (orange "SPiRAL", grey "NY"), with the product name under it.
+ */
+export function BrandLogo({ width = 172, href = "/analytics" }: { width?: number; href?: string }) {
   return (
-    <Link href="/analytics" className="block rounded-md focus-visible:outline-2 focus-visible:outline-ring">
+    <Link href={href} className="block rounded-md focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring">
       <Image
         src="/brand/spiralny-logo@2x.png"
         alt="SPiRALNY Real Estate"
         width={2048}
         height={698}
         priority
-        className="h-auto w-[176px]"
+        style={{ width, height: "auto" }}
       />
-      <span className="mt-1.5 block pl-[62px] text-[11px] font-semibold tracking-[0.18em] text-muted-foreground uppercase">
+      <span
+        className="mt-2 flex items-center gap-2 text-[13px] font-semibold text-sidebar-muted"
+        style={{ paddingLeft: Math.round(width * 0.355) }}
+      >
         Spiral OS
       </span>
     </Link>
   );
 }
 
-/** Compact mark for the phone header: the lion icon from spiralny.com. */
-export function BrandMark() {
+/** Logo for the phone header bar (charcoal, like the site's). */
+export function BrandBar() {
   return (
-    <Link href="/analytics" className="flex items-center gap-2 rounded-md focus-visible:outline-2 focus-visible:outline-ring">
-      <Image src="/brand/lion-icon-192.png" alt="" width={192} height={192} className="size-8 rounded-full" />
-      <span className="text-sm font-semibold">
-        Spiral <span className="text-brand">OS</span>
+    <Link href="/analytics" className="flex items-center gap-2.5 rounded-md focus-visible:outline-2 focus-visible:outline-ring">
+      <Image src="/brand/spiralny-logo@2x.png" alt="SPiRALNY Real Estate" width={2048} height={698} priority className="h-8 w-auto" />
+      <span className="border-l border-sidebar-border pl-2.5 text-[13px] font-semibold text-sidebar-muted">
+        Spiral OS
       </span>
     </Link>
   );

@@ -100,7 +100,7 @@ export function PagesTable({ rows }: { rows: PageRow[] }) {
                           <li key={s.query} className="flex flex-wrap items-baseline gap-x-3">
                             <span className="min-w-0 flex-1 truncate">{s.query}</span>
                             <span className="tabular text-muted-foreground">
-                              {formatFull(s.clicks)} clicks · {formatFull(s.impressions)} shown · position {formatPosition(s.position)}
+                              {formatFull(s.clicks)} clicks, shown {formatFull(s.impressions)} times, average position {formatPosition(s.position)}
                             </span>
                           </li>
                         ))}

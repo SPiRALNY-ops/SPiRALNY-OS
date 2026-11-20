@@ -15,10 +15,10 @@ export function Section({
   children: React.ReactNode;
 }) {
   return (
-    <section className="min-w-0 rounded-xl border bg-card p-4 sm:p-5">
+    <section className="min-w-0 rounded-xl border bg-card p-4 shadow-xs sm:p-5">
       <header className="mb-3">
         <div className="flex flex-wrap items-center gap-2">
-          <h2 className="font-semibold">{title}</h2>
+          <h3 className="text-base font-bold">{title}</h3>
           {sample && <SampleBadge />}
         </div>
         {description && <p className="mt-0.5 text-sm text-muted-foreground">{description}</p>}

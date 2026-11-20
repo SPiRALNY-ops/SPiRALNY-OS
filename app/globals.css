@@ -5,11 +5,13 @@
 @custom-variant dark (&:is(.dark *));
 
 /*
-  Spiral OS theme — colours taken from spiralny.com:
-    brand orange  #f26033  (logo "SPiRAL", links, accents)
-    charcoal      #252526  (logo lion circle, footer)
-    grey          logo "NY" / "REAL ESTATE"
-  Font: Work Sans (the site's only typeface).
+  Spiral OS theme — taken from spiralny.com's own stylesheet (counted 2026-11-20):
+    brand orange  #f26033  (most-used colour: logo "SPiRAL", buttons, heading underlines, prices)
+    charcoal      #252526  (header bar, pricing-card headers, dark sections, dark buttons)
+    light grey    #f4f4f4  (section backgrounds)        text grey  #666666
+  Font: Work Sans (the site's only typeface). Signature details reused here:
+  the charcoal top bar with the logo (our sidebar), bold headings with a thick
+  orange underline, and pill-shaped buttons.
 
   Orange is an accent (active tab, focus ring, chart series 1). Buttons use
   charcoal with white text, because white on #f26033 is only ~3.2:1.
@@ -37,6 +39,7 @@
   --color-sidebar-primary: var(--sidebar-primary);
   --color-sidebar-foreground: var(--sidebar-foreground);
   --color-sidebar: var(--sidebar);
+  --color-sidebar-muted: var(--sidebar-muted);
   --color-chart-1: var(--chart-1);
   --color-chart-2: var(--chart-2);
   --color-chart-3: var(--chart-3);
@@ -47,6 +50,8 @@
   --color-chart-muted: var(--chart-muted);
   --color-good: var(--good);
   --color-bad: var(--bad);
+  --color-good-inverse: var(--good-inverse);
+  --color-bad-inverse: var(--bad-inverse);
   --color-ring: var(--ring);
   --color-input: var(--input);
   --color-border: var(--border);
@@ -75,7 +80,7 @@
 :root {
   --radius: 0.625rem;
 
-  --background: #f7f7f5;
+  --background: #f4f4f4;
   --foreground: #252526;
   --card: #ffffff;
   --card-foreground: #252526;
@@ -88,24 +93,26 @@
 
   --primary: #252526;
   --primary-foreground: #ffffff;
-  --secondary: #f0efec;
+  --secondary: #f4f4f4;
   --secondary-foreground: #252526;
-  --muted: #f0efec;
-  --muted-foreground: #66645f;
-  --accent: #f0efec;
+  --muted: #f1f1f1;
+  --muted-foreground: #666666;
+  --accent: #f4f4f4;
   --accent-foreground: #252526;
   --destructive: #d03b3b;
-  --border: #e4e2dc;
-  --input: #d9d7d0;
+  --border: #e3e3e3;
+  --input: #d6d6d6;
   --ring: #f26033;
 
-  --sidebar: #ffffff;
-  --sidebar-foreground: #252526;
+  /* The sidebar is the site's charcoal header bar, in both themes. */
+  --sidebar: #252526;
+  --sidebar-foreground: #f4f4f4;
+  --sidebar-muted: #a6a6a6;
   --sidebar-primary: #f26033;
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #fdeee8;
-  --sidebar-accent-foreground: #252526;
-  --sidebar-border: #e4e2dc;
+  --sidebar-accent: rgba(255, 255, 255, 0.08);
+  --sidebar-accent-foreground: #ffffff;
+  --sidebar-border: rgba(255, 255, 255, 0.09);
   --sidebar-ring: #f26033;
 
   /* chart series (fixed order — see note at top) */
@@ -115,21 +122,24 @@
   --chart-4: #6250d6;
   --chart-5: #898781;
   /* chart chrome */
-  --chart-grid: #e8e6e0;
-  --chart-axis: #c3c2b7;
+  --chart-grid: #ebebeb;
+  --chart-axis: #c8c8c8;
   --chart-muted: #898781;
   /* change up / down text (always paired with an arrow icon) */
   --good: #006300;
   --bad: #b42d2d;
+  /* the same, on the charcoal band (4.6:1 and 4.8:1 on #252526) */
+  --good-inverse: #0ca30c;
+  --bad-inverse: #e66767;
 }
 
 .dark {
   --background: #161617;
-  --foreground: #f0efec;
+  --foreground: #f4f4f4;
   --card: #1f1f20;
-  --card-foreground: #f0efec;
+  --card-foreground: #f4f4f4;
   --popover: #232324;
-  --popover-foreground: #f0efec;
+  --popover-foreground: #f4f4f4;
 
   --brand: #f26033;
   --brand-foreground: #ffffff;
@@ -140,7 +150,7 @@
   --secondary: #2a2a2b;
   --secondary-foreground: #f0efec;
   --muted: #2a2a2b;
-  --muted-foreground: #b3b1aa;
+  --muted-foreground: #b0b0b0;
   --accent: #2a2a2b;
   --accent-foreground: #f0efec;
   --destructive: #e66767;
@@ -148,12 +158,13 @@
   --input: rgba(255, 255, 255, 0.16);
   --ring: #f26033;
 
-  --sidebar: #1b1b1c;
-  --sidebar-foreground: #f0efec;
+  --sidebar: #1c1c1d;
+  --sidebar-foreground: #f4f4f4;
+  --sidebar-muted: #a6a6a6;
   --sidebar-primary: #f26033;
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #3a2219;
-  --sidebar-accent-foreground: #f0efec;
+  --sidebar-accent: rgba(255, 255, 255, 0.07);
+  --sidebar-accent-foreground: #ffffff;
   --sidebar-border: rgba(255, 255, 255, 0.08);
   --sidebar-ring: #f26033;
 
@@ -162,11 +173,13 @@
   --chart-3: #199e70;
   --chart-4: #9085e9;
   --chart-5: #898781;
-  --chart-grid: #2c2c2a;
-  --chart-axis: #383835;
+  --chart-grid: #2c2c2d;
+  --chart-axis: #3a3a3b;
   --chart-muted: #898781;
   --good: #0ca30c;
   --bad: #e66767;
+  --good-inverse: #0ca30c;
+  --bad-inverse: #e66767;
 }
 
 @layer base {
@@ -185,5 +198,23 @@
   }
   .tabular {
     font-variant-numeric: tabular-nums;
+  }
+}
+
+@layer components {
+  /* The charcoal hero band: series colours use their dark-surface steps in both
+     themes (validated on #252526: orange→aqua→blue→grey passes CVD and normal-vision). */
+  .hero-band {
+    --chart-1: #d95926;
+    --chart-2: #3987e5;
+    --chart-3: #199e70;
+    --chart-5: #898781;
+  }
+
+  /* spiralny.com's heading style: bold, with a thick orange rule underneath. */
+  .brand-underline {
+    display: inline-block;
+    padding-bottom: 0.375rem;
+    border-bottom: 3px solid var(--brand);
   }
 }

@@ -76,16 +76,16 @@ export function ChartCard({
 }) {
   const [view, setView] = useState<"chart" | "table">("chart");
   return (
-    <section className="flex min-w-0 flex-col rounded-xl border bg-card p-4 sm:p-5">
+    <section className="flex min-w-0 flex-col rounded-xl border bg-card p-4 shadow-xs sm:p-5">
       <header className="mb-4 flex items-start gap-3">
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <h2 className="font-semibold">{title}</h2>
+            <h3 className="text-base font-bold">{title}</h3>
             {sample && <SampleBadge />}
           </div>
           {description && <p className="mt-0.5 text-sm text-muted-foreground">{description}</p>}
         </div>
-        <div role="group" aria-label={`${title}: view`} className="flex shrink-0 rounded-lg border p-0.5">
+        <div role="group" aria-label={`${title}: view`} className="flex shrink-0 rounded-full border p-0.5">
           {(
             [
               ["chart", ChartColumn, "Chart"],
@@ -100,8 +100,8 @@ export function ChartCard({
               title={label}
               onClick={() => setView(key)}
               className={cn(
-                "rounded-md p-1.5 text-muted-foreground transition-colors focus-visible:outline-2 focus-visible:outline-ring",
-                view === key ? "bg-muted text-foreground" : "hover:text-foreground",
+                "rounded-full p-1.5 text-muted-foreground transition-colors focus-visible:outline-2 focus-visible:outline-ring",
+                view === key ? "bg-primary text-primary-foreground" : "hover:text-foreground",
               )}
             >
               <Icon className="size-4" />

@@ -97,6 +97,18 @@ export function resolveRange(key: RangeKey, today: string): DateRange {
 }
 
 /** Every date from start to end inclusive. */
+/** Adds daily values into the range's buckets, in bucket order (days outside the range are ignored). */
+export function sumIntoBuckets(range: Pick<DateRange, "bucketSize" | "start" | "end" | "buckets">, daily: Iterable<[string, number]>): number[] {
+  const index = new Map(range.buckets.map((b, i) => [b.key, i]));
+  const out = range.buckets.map(() => 0);
+  for (const [day, value] of daily) {
+    if (day < range.start || day > range.end) continue;
+    const i = index.get(bucketKeyFor(day, range));
+    if (i !== undefined) out[i] += value;
+  }
+  return out;
+}
+
 export function eachDay(start: string, end: string): string[] {
   const days: string[] = [];
   for (let d = start; d <= end; d = addDays(d, 1)) days.push(d);

@@ -36,6 +36,8 @@ export type Kpi = {
   label: string;
   value: number;
   previous: number;
+  /** One value per bucket of the range (the tile's small trend line); sums to `value`. */
+  trend: number[];
   origin: Origin;
   source: SourceKey;
 };

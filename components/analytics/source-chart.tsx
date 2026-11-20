@@ -87,7 +87,7 @@ export function SourceChart({
             const range = row.start === row.end ? row.label : `${shortDate(row.start)} – ${shortDate(row.end)}`;
             return (
               <TooltipBox
-                title={`${range} · ${formatFull(row.__total)} ${noun}`}
+                title={`${range}: ${formatFull(row.__total)} ${noun}`}
                 rows={[...SOURCE_SERIES].reverse().map((s) => ({ label: s.label, value: row[s.key], color: s.color }))}
               />
             );

@@ -18,6 +18,17 @@ See everything → Step 2 Onboarding → Step 3 AI calls → Step 4 Georgia and 
 - **Charts follow the dataviz skill**: categorical colours in fixed order (validated; see `app/globals.css`),
   no dual axes, legend for ≥2 series, every chart has a table view, text never wears the series colour.
 
+## Design (Analytics sets the pattern)
+- spiralny.com's own vernacular: charcoal `#252526` bar with the logo (our sidebar / phone header), bold
+  Work Sans headings with the thick orange rule (`.brand-underline`), pill buttons, `#f4f4f4` canvas,
+  `#666666` secondary text. Colours were counted from the site's stylesheet; don't invent new brand colours.
+- One bold moment per page: the charcoal hero band (one hero figure ≥48px + a tall segmented bar).
+  Everything else is quiet: one number strip with hairline dividers and sparklines, then chapters headed
+  with the orange rule. Avoid identical card grids, ALL-CAPS labels and `A · B` meta strings.
+- Lead-source stacking order is google → referral → cold_email → unknown (validated: aqua beside grey
+  fails colour-blind separation). Inside the charcoal band, series use their dark-surface steps (`.hero-band`).
+- Big numbers use proportional figures; `.tabular` only for aligned columns.
+
 ## Stack
 Next.js 16 (App Router, `cacheComponents` on) · React 19 · TypeScript · Tailwind v4 · shadcn/ui (Radix) ·
 recharts · zod · Supabase (Postgres + Auth) · vitest · Railway (Dockerfile + railway.json).
@@ -35,11 +46,18 @@ With Cache Components: anything that reads cookies, search params or the databas
   anon/authenticated. Apply to Supabase with `npm run db:migrate`.
 - `lib/analytics/` — `build.ts` (assembles the view; real vs sample per source), `queries.ts` (SQL),
   `sample.ts` (deterministic sample), `range.ts` (New York dates, buckets).
-- `components/analytics/` — dashboard, charts, tables. `lib/tools.ts` — the 10 tools from the plan.
+- `components/analytics/` — dashboard, charts, tables, OpsLabs-only connections panel. `lib/tools.ts` — the 10 tools.
+- `lib/sources/` — one API client per source (plain `fetch`, injected for tests): Google OAuth (PKCE),
+  GA4 Data API, Search Console, Gmail, Instantly v2, and the WPForms notification parser. Every endpoint
+  and field name comes from the official spec (Google discovery docs, Instantly OpenAPI); cite it in the file.
+- `lib/sync/` — `runSync` runs forms → instantly → gsc → ga4, logging each in `spiral.sync_runs`. A step
+  returns "skipped" (sample data stays) when connected but empty. `server.ts` = env config, one-at-a-time
+  lock, `after()`. Triggered by `/api/cron/sync` (Bearer `CRON_SECRET`), "Sync now", and Google connect.
+- `lib/people.ts` — one record per person: form entries upsert by email, else phone; never blank out data.
 
 ## Commands
 - `npm run dev` — local app (no env needed; embedded database + dev-only session)
-- `npm test` — vitest (migrations and analytics run on in-memory PGlite)
+- `npm test` — vitest (migrations, analytics and the full sync run on in-memory PGlite with API fixtures)
 - `npm run typecheck`, `npm run build`
 - `DATABASE_URL=… npm run db:migrate` — apply migrations to Supabase
 - `DATABASE_URL=… npm run grant -- <email> <owner|team|opslabs> ["Name"]` — give a Supabase Auth user access

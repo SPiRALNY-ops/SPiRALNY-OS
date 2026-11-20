@@ -61,12 +61,61 @@ export async function gscClicks(db: Db, p: Period): Promise<number> {
   return row?.n ?? 0;
 }
 
+/** Whether the last sync stored Instantly's own totals for exactly this period. */
+async function hasInstantlyTotals(db: Db, p: Period): Promise<boolean> {
+  const [row] = await db.query<{ any: boolean }>(
+    "select exists (select 1 from spiral.instantly_range_totals where range_start = $1::date and range_end = $2::date) as any",
+    [p.start, p.end],
+  );
+  return Boolean(row?.any);
+}
+
+/** People who replied, as Instantly counts them; falls back to adding up days for other periods. */
 export async function instantlyReplies(db: Db, p: Period): Promise<number> {
+  const fromTotals = await hasInstantlyTotals(db, p);
   const [row] = await db.query<{ n: number }>(
-    "select coalesce(sum(replies), 0)::int as n from spiral.instantly_campaign_daily where day between $1::date and $2::date",
+    fromTotals
+      ? "select coalesce(sum(replies), 0)::int as n from spiral.instantly_range_totals where range_start = $1::date and range_end = $2::date"
+      : "select coalesce(sum(replies), 0)::int as n from spiral.instantly_campaign_daily where day between $1::date and $2::date",
     [p.start, p.end],
   );
   return row?.n ?? 0;
+}
+
+/** People with no completed form in the period, by the day of their first entry (sums to formTotals().unfinished). */
+export async function unfinishedDaily(db: Db, p: Period, tz: string): Promise<[string, number][]> {
+  const rows = await db.query<{ day: string; n: number }>(
+    `with people as (
+       select ${WHO} as who,
+              min((fe.received_at at time zone $3)::date) as day,
+              bool_or(fe.entry_type = 'complete') as completed
+         from spiral.form_entries fe
+        where ${IN_PERIOD}
+        group by 1
+     )
+     select day::text as day, count(*)::int as n from people where not completed group by day`,
+    [p.start, p.end, tz],
+  );
+  return rows.map((r) => [r.day, r.n]);
+}
+
+/** Daily totals for a tile's trend line. */
+export async function ga4VisitsDaily(db: Db, p: Period): Promise<[string, number][]> {
+  const rows = await db.query<{ day: string; n: number }>(
+    `select day::text as day, sum(sessions)::int as n from spiral.ga4_daily
+      where day between $1::date and $2::date group by day`,
+    [p.start, p.end],
+  );
+  return rows.map((r) => [r.day, r.n]);
+}
+
+export async function instantlyRepliesDaily(db: Db, p: Period): Promise<[string, number][]> {
+  const rows = await db.query<{ day: string; n: number }>(
+    `select day::text as day, sum(replies)::int as n from spiral.instantly_campaign_daily
+      where day between $1::date and $2::date group by day`,
+    [p.start, p.end],
+  );
+  return rows.map((r) => [r.day, r.n]);
 }
 
 function toLeadSource(value: string | null): LeadSource {
@@ -209,14 +258,18 @@ export async function pageRows(
 }
 
 export async function campaignRows(db: Db, p: Period, tz: string, withForms: boolean): Promise<CampaignRow[]> {
+  // Instantly's own totals when the last sync stored them for this period (they match its screens);
+  // otherwise daily numbers added up.
+  const source = (await hasInstantlyTotals(db, p))
+    ? "(select campaign_id, sent, replies, interested from spiral.instantly_range_totals where range_start = $1::date and range_end = $2::date)"
+    : "(select campaign_id, sent, replies, interested from spiral.instantly_campaign_daily where day between $1::date and $2::date)";
   const campaigns = await db.query<Omit<CampaignRow, "leads" | "signups">>(
     `select c.id, c.name,
             coalesce(sum(d.sent), 0)::int as sent,
             coalesce(sum(d.replies), 0)::int as replies,
             coalesce(sum(d.interested), 0)::int as interested
        from spiral.instantly_campaigns c
-       left join spiral.instantly_campaign_daily d
-         on d.campaign_id = c.id and d.day between $1::date and $2::date
+       left join ${source} d on d.campaign_id = c.id
       group by c.id, c.name
      having coalesce(sum(d.sent), 0) > 0 or coalesce(sum(d.replies), 0) > 0
       order by sent desc`,

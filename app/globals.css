@@ -1,26 +1,189 @@
 @import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+@custom-variant dark (&:is(.dark *));
+
+/*
+  Spiral OS theme — colours taken from spiralny.com:
+    brand orange  #f26033  (logo "SPiRAL", links, accents)
+    charcoal      #252526  (logo lion circle, footer)
+    grey          logo "NY" / "REAL ESTATE"
+  Font: Work Sans (the site's only typeface).
+
+  Orange is an accent (active tab, focus ring, chart series 1). Buttons use
+  charcoal with white text, because white on #f26033 is only ~3.2:1.
+
+  Chart colours: Spiral orange leads, then blue, aqua, violet. Validated with
+  the dataviz validator (light on #ffffff, dark on #1f1f20): all hard checks
+  pass; light aqua is below 3:1 on white, so charts that use it must carry
+  direct labels or a table view.
+*/
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: var(--font-work-sans);
+  --font-heading: var(--font-work-sans);
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+  --color-brand: var(--brand);
+  --color-brand-foreground: var(--brand-foreground);
+  --color-brand-soft: var(--brand-soft);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-chart-grid: var(--chart-grid);
+  --color-chart-axis: var(--chart-axis);
+  --color-chart-muted: var(--chart-muted);
+  --color-good: var(--good);
+  --color-bad: var(--bad);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+:root {
+  --radius: 0.625rem;
+
+  --background: #f7f7f5;
+  --foreground: #252526;
+  --card: #ffffff;
+  --card-foreground: #252526;
+  --popover: #ffffff;
+  --popover-foreground: #252526;
+
+  --brand: #f26033;
+  --brand-foreground: #ffffff;
+  --brand-soft: #fdeee8;
+
+  --primary: #252526;
+  --primary-foreground: #ffffff;
+  --secondary: #f0efec;
+  --secondary-foreground: #252526;
+  --muted: #f0efec;
+  --muted-foreground: #66645f;
+  --accent: #f0efec;
+  --accent-foreground: #252526;
+  --destructive: #d03b3b;
+  --border: #e4e2dc;
+  --input: #d9d7d0;
+  --ring: #f26033;
+
+  --sidebar: #ffffff;
+  --sidebar-foreground: #252526;
+  --sidebar-primary: #f26033;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #fdeee8;
+  --sidebar-accent-foreground: #252526;
+  --sidebar-border: #e4e2dc;
+  --sidebar-ring: #f26033;
+
+  /* chart series (fixed order — see note at top) */
+  --chart-1: #f26033;
+  --chart-2: #2a78d6;
+  --chart-3: #1baf7a;
+  --chart-4: #6250d6;
+  --chart-5: #898781;
+  /* chart chrome */
+  --chart-grid: #e8e6e0;
+  --chart-axis: #c3c2b7;
+  --chart-muted: #898781;
+  /* change up / down text (always paired with an arrow icon) */
+  --good: #006300;
+  --bad: #b42d2d;
+}
+
+.dark {
+  --background: #161617;
+  --foreground: #f0efec;
+  --card: #1f1f20;
+  --card-foreground: #f0efec;
+  --popover: #232324;
+  --popover-foreground: #f0efec;
+
+  --brand: #f26033;
+  --brand-foreground: #ffffff;
+  --brand-soft: #3a2219;
+
+  --primary: #f0efec;
+  --primary-foreground: #252526;
+  --secondary: #2a2a2b;
+  --secondary-foreground: #f0efec;
+  --muted: #2a2a2b;
+  --muted-foreground: #b3b1aa;
+  --accent: #2a2a2b;
+  --accent-foreground: #f0efec;
+  --destructive: #e66767;
+  --border: rgba(255, 255, 255, 0.1);
+  --input: rgba(255, 255, 255, 0.16);
+  --ring: #f26033;
+
+  --sidebar: #1b1b1c;
+  --sidebar-foreground: #f0efec;
+  --sidebar-primary: #f26033;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #3a2219;
+  --sidebar-accent-foreground: #f0efec;
+  --sidebar-border: rgba(255, 255, 255, 0.08);
+  --sidebar-ring: #f26033;
+
+  --chart-1: #d95926;
+  --chart-2: #3987e5;
+  --chart-3: #199e70;
+  --chart-4: #9085e9;
+  --chart-5: #898781;
+  --chart-grid: #2c2c2a;
+  --chart-axis: #383835;
+  --chart-muted: #898781;
+  --good: #0ca30c;
+  --bad: #e66767;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
   }
-}
-
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  body {
+    @apply bg-background text-foreground;
+  }
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
+    cursor: pointer;
+  }
+  html {
+    @apply font-sans;
+  }
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
 }

@@ -122,9 +122,11 @@ export async function syncInstantly(ctx: SyncContext): Promise<SourceResult> {
   // 4. Match form-entry emails to Instantly leads (each address once).
   const pending = (
     await db.query<{ email: string }>(
-      `select distinct lower(fe.email) as email from spiral.form_entries fe
-        where fe.email is not null
-          and not exists (select 1 from spiral.instantly_lookups l where l.email = lower(fe.email))`,
+      `select distinct e.email from (
+          select lower(email) as email from spiral.form_entries where email is not null
+          union select lower(email) from spiral.lead_sheet_rows where email is not null
+        ) e
+        where not exists (select 1 from spiral.instantly_lookups l where l.email = e.email)`,
     )
   ).map((r) => r.email);
   let matched = 0;

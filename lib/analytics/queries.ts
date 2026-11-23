@@ -32,6 +32,41 @@ export async function lastSuccessfulSyncs(db: Db): Promise<Partial<Record<Source
   return out;
 }
 
+/**
+ * Every lead and sign-up: form entries plus lead sheet rows, each tied to its
+ * person where one is known, so someone in both counts once. Uses $3 = time zone.
+ */
+const EVENTS = `
+  select coalesce(fe.person_id::text, lower(fe.email), fe.gmail_message_id) as who,
+         (fe.received_at at time zone $3)::date as day,
+         fe.entry_type = 'complete' as signup,
+         coalesce(p.source, 'unknown') as source,
+         lower(fe.email) as email
+    from spiral.form_entries fe
+    left join spiral.people p on p.id = fe.person_id
+  union all
+  select coalesce(r.person_id::text, lower(r.email), r.tab || '#' || r.row_number),
+         r.day,
+         r.kind = 'signup',
+         coalesce(p.source, r.source),
+         lower(r.email)
+    from spiral.lead_sheet_rows r
+    left join spiral.people p on p.id = r.person_id
+   where r.day is not null`;
+
+/** People who became leads / signed up in the period (forms and lead sheet together). */
+export async function leadTotals(db: Db, p: Period, tz: string) {
+  const [row] = await db.query<{ leads: number; signups: number }>(
+    `with ev as (${EVENTS})
+     select count(distinct who)::int as leads,
+            count(distinct who) filter (where signup)::int as signups
+       from ev where day between $1::date and $2::date`,
+    [p.start, p.end, tz],
+  );
+  return { leads: row?.leads ?? 0, signups: row?.signups ?? 0 };
+}
+
+/** Form-only numbers (unfinished forms only exist for forms). */
 export async function formTotals(db: Db, p: Period, tz: string) {
   const [row] = await db.query<{ leads: number; signups: number }>(
     `select count(distinct ${WHO})::int as leads,
@@ -47,7 +82,7 @@ export async function formTotals(db: Db, p: Period, tz: string) {
 
 export async function ga4Visits(db: Db, p: Period): Promise<number> {
   const [row] = await db.query<{ n: number }>(
-    "select coalesce(sum(sessions), 0)::int as n from spiral.ga4_daily where day between $1::date and $2::date",
+    "select coalesce(sum(sessions), 0)::int as n from spiral.ga4_daily_site where day between $1::date and $2::date",
     [p.start, p.end],
   );
   return row?.n ?? 0;
@@ -55,7 +90,7 @@ export async function ga4Visits(db: Db, p: Period): Promise<number> {
 
 export async function gscClicks(db: Db, p: Period): Promise<number> {
   const [row] = await db.query<{ n: number }>(
-    "select coalesce(sum(clicks), 0)::int as n from spiral.gsc_daily_page where day between $1::date and $2::date",
+    "select coalesce(sum(clicks), 0)::int as n from spiral.gsc_daily_site where day between $1::date and $2::date",
     [p.start, p.end],
   );
   return row?.n ?? 0;
@@ -102,8 +137,8 @@ export async function unfinishedDaily(db: Db, p: Period, tz: string): Promise<[s
 /** Daily totals for a tile's trend line. */
 export async function ga4VisitsDaily(db: Db, p: Period): Promise<[string, number][]> {
   const rows = await db.query<{ day: string; n: number }>(
-    `select day::text as day, sum(sessions)::int as n from spiral.ga4_daily
-      where day between $1::date and $2::date group by day`,
+    `select day::text as day, sessions as n from spiral.ga4_daily_site
+      where day between $1::date and $2::date`,
     [p.start, p.end],
   );
   return rows.map((r) => [r.day, r.n]);
@@ -130,18 +165,15 @@ export async function bySource(
   which: "leads" | "signups",
 ): Promise<SourceBucket[]> {
   const rows = await db.query<{ day: string; source: string | null; n: number }>(
-    `with firsts as (
-       select ${WHO} as who,
-              min((fe.received_at at time zone $3)::date) as day,
-              max(p.source) as source
-         from spiral.form_entries fe
-         left join spiral.people p on p.id = fe.person_id
-        where ${IN_PERIOD}
-          and ($4::text is null or fe.entry_type = $4::text)
-        group by 1
+    `with ev as (${EVENTS}),
+     firsts as (
+       select who, min(day) as day, max(source) as source
+         from ev
+        where day between $1::date and $2::date and (not $4::boolean or signup)
+        group by who
      )
      select day::text as day, source, count(*)::int as n from firsts group by day, source`,
-    [range.start, range.end, tz, which === "signups" ? "complete" : null],
+    [range.start, range.end, tz, which === "signups"],
   );
   const buckets = new Map<string, SourceBucket>(
     range.buckets.map((b) => [b.key, { ...b, google: 0, cold_email: 0, referral: 0, unknown: 0 }]),
@@ -155,9 +187,9 @@ export async function bySource(
 
 export async function searchDaily(db: Db, p: Period): Promise<DailySearchPoint[]> {
   const rows = await db.query<{ day: string; clicks: number; impressions: number }>(
-    `select day::text as day, sum(clicks)::int as clicks, sum(impressions)::int as impressions
-       from spiral.gsc_daily_page where day between $1::date and $2::date
-      group by day order by day`,
+    `select day::text as day, clicks, impressions
+       from spiral.gsc_daily_site where day between $1::date and $2::date
+      order by day`,
     [p.start, p.end],
   );
   const byDay = new Map(rows.map((r) => [r.day, r]));
@@ -257,7 +289,7 @@ export async function pageRows(
     .slice(0, 25);
 }
 
-export async function campaignRows(db: Db, p: Period, tz: string, withForms: boolean): Promise<CampaignRow[]> {
+export async function campaignRows(db: Db, p: Period, tz: string, withLeads: boolean): Promise<CampaignRow[]> {
   // Instantly's own totals when the last sync stored them for this period (they match its screens);
   // otherwise daily numbers added up.
   const source = (await hasInstantlyTotals(db, p))
@@ -276,13 +308,14 @@ export async function campaignRows(db: Db, p: Period, tz: string, withForms: boo
     [p.start, p.end],
   );
   const matched = new Map<string, { leads: number; signups: number }>();
-  if (withForms) {
+  if (withLeads) {
     const rows = await db.query<{ campaign_id: string; leads: number; signups: number }>(
-      `select il.campaign_id, count(distinct lower(fe.email))::int as leads,
-              count(distinct lower(fe.email)) filter (where fe.entry_type = 'complete')::int as signups
-         from spiral.form_entries fe
-         join spiral.instantly_leads il on lower(il.email) = lower(fe.email)
-        where ${IN_PERIOD}
+      `with ev as (${EVENTS})
+       select il.campaign_id, count(distinct ev.who)::int as leads,
+              count(distinct ev.who) filter (where ev.signup)::int as signups
+         from ev
+         join spiral.instantly_leads il on lower(il.email) = ev.email
+        where ev.day between $1::date and $2::date
         group by il.campaign_id`,
       [p.start, p.end, tz],
     );
@@ -290,7 +323,7 @@ export async function campaignRows(db: Db, p: Period, tz: string, withForms: boo
   }
   return campaigns.map((c) => ({
     ...c,
-    leads: withForms ? (matched.get(c.id)?.leads ?? 0) : null,
-    signups: withForms ? (matched.get(c.id)?.signups ?? 0) : null,
+    leads: withLeads ? (matched.get(c.id)?.leads ?? 0) : null,
+    signups: withLeads ? (matched.get(c.id)?.signups ?? 0) : null,
   }));
 }

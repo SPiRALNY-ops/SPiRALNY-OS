@@ -8,6 +8,7 @@ import { DisconnectButton, RefreshWhileRunning, SyncNowButton } from "./connecti
 
 const SOURCE_LABEL: Record<SyncSource, string> = {
   forms: "Sign-up form entries (from Gmail)",
+  lead_sheet: "Lead sheet (Google Sheets)",
   instantly: "Instantly",
   gsc: "Google Search Console",
   ga4: "Google Analytics",
@@ -21,6 +22,7 @@ const NOTICES: Record<string, string> = {
   "no-refresh-token": "Google didn't grant lasting access. Press Connect Google again.",
   failed: "Connecting Google failed. The server log has the details.",
   forbidden: "Only OpsLabs can connect Google.",
+  "wrong-account": "That Google account isn't the one set for Spiral OS (GOOGLE_ACCOUNT_EMAIL), so it wasn't connected.",
 };
 
 /** OpsLabs only: Google connection, per-source sync health, and "Sync now". */

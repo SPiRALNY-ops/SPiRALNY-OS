@@ -6,7 +6,7 @@ export type BucketSize = "day" | "week" | "month";
 /** "real" = Spiral NY's synced data. "sample" = made-up numbers shown until the source connects. */
 export type Origin = "real" | "sample";
 
-export type SourceKey = "forms" | "ga4" | "gsc" | "instantly";
+export type SourceKey = "forms" | "lead_sheet" | "ga4" | "gsc" | "instantly";
 
 export type Bucket = { key: string; start: string; end: string; label: string };
 

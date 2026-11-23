@@ -15,6 +15,8 @@ export type PersonInput = {
   seenAt: Date;
   /** A completed sign-up form means they joined. */
   signed: boolean;
+  /** How a new person entered Spiral OS (existing people keep theirs). */
+  origin?: "website" | "lead_sheet";
 };
 
 const UPDATE_SET = `
@@ -27,12 +29,12 @@ const UPDATE_SET = `
 
 export async function upsertPerson(tx: Tx, p: PersonInput): Promise<string | null> {
   const stage = p.signed ? "signed" : "new";
-  const values = [p.fullName, p.email, p.phone, p.licenseNumber, stage, p.seenAt.toISOString()];
+  const values = [p.fullName, p.email, p.phone, p.licenseNumber, stage, p.seenAt.toISOString(), p.origin ?? "website"];
 
   if (p.email) {
     const [row] = await tx.query<{ id: string }>(
       `insert into spiral.people as people (full_name, email, phone, license_number, stage, first_seen_at, source)
-       values ($1, lower($2), $3, $4, $5, $6::timestamptz, 'website')
+       values ($1, lower($2), $3, $4, $5, $6::timestamptz, $7)
        on conflict (lower(email)) where email is not null do update set ${UPDATE_SET}
        returning id`,
       values,
@@ -60,7 +62,7 @@ export async function upsertPerson(tx: Tx, p: PersonInput): Promise<string | nul
     }
     const [row] = await tx.query<{ id: string }>(
       `insert into spiral.people (full_name, email, phone, license_number, stage, first_seen_at, source)
-       values ($1, $2, $3, $4, $5, $6::timestamptz, 'website') returning id`,
+       values ($1, $2, $3, $4, $5, $6::timestamptz, $7) returning id`,
       values,
     );
     return row.id;

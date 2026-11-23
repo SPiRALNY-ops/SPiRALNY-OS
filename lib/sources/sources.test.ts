@@ -8,7 +8,10 @@ import { fetchGscRows } from "./gsc";
 import { requestJson, type Fetch } from "./http";
 import { findLeadsByEmail, listCampaigns } from "./instantly";
 import { SPIRAL_FORMS, normalizePhone, notificationMessage, parseAmountCents, parseSpiralEntry } from "./wpforms-email";
-import { ABANDONED_HTML, COMPLETE_TEXT } from "@/test/fixtures";
+import { ABANDONED_HTML, COMPLETE_TEXT, LEAD_SHEET_TABS_FIXTURE } from "@/test/fixtures";
+import { normalizePlan, parseLeadSheetTab, parseSheetDate, sourceFromHowFound, tabRule } from "./lead-sheet";
+import { readTabs } from "./sheets";
+import { pickSpiralSite } from "./gsc";
 
 type Call = { url: string; method: string; body: string | undefined; headers: Record<string, string> };
 
@@ -290,5 +293,76 @@ describe("Gmail messages", () => {
     const r = readMessage({ id: "m2", payload: { mimeType: "text/html", body: { data: b64(ABANDONED_HTML) } } });
     expect(r.text.split("\n").slice(0, 3)).toEqual(["Spiral OS entry", "Type: abandoned", "Form ID: 25662"]);
     expect(r.text).not.toContain("margin");
+  });
+});
+
+describe("lead sheet", () => {
+  it("reads the tabs that hold leads and sign-ups, and skips prospect lists", () => {
+    expect(["SIGNED!", "FWD/FRESH", "Instantly", "SEO", "Cold-calling "].every((t) => tabRule(t))).toBe(true);
+    expect(["BROKER LEADS", "School leads", "Copy of School leads", "Sheet7"].some((t) => tabRule(t))).toBe(false);
+  });
+
+  it("parses dates as the sheet stores them", () => {
+    expect(parseSheetDate(46340)).toBe("2026-11-14"); // a real date cell, as a serial number
+    expect(parseSheetDate("July 30, 2026")).toBe("2026-07-30");
+    expect(parseSheetDate("Sept 3, 2026")).toBe("2026-09-03");
+    expect(parseSheetDate("7/28/2026")).toBe("2026-07-28");
+    expect(parseSheetDate("-")).toBeNull();
+  });
+
+  it("maps each tab's columns by header", () => {
+    const signed = parseLeadSheetTab("SIGNED!", LEAD_SHEET_TABS_FIXTURE["SIGNED!"]);
+    expect(signed).toEqual([
+      expect.objectContaining({ kind: "signup", day: "2026-11-11", fullName: "Jane Doe", email: "jane@example.com", phone: "6465550199", plan: "100%", howFound: null, source: "unknown", rowNumber: 2 }),
+      expect.objectContaining({ kind: "signup", day: "2026-11-14", fullName: "Sam Lee", plan: "Park Your License", licenseNumber: "40DE0000001" }),
+    ]);
+    // The notes column ("Referral to 90%") is not read as a referral source.
+
+    const fresh = parseLeadSheetTab("FWD/FRESH", LEAD_SHEET_TABS_FIXTURE["FWD/FRESH"]);
+    expect(fresh).toHaveLength(2); // the empty row is skipped
+    expect(fresh[0]).toMatchObject({ kind: "lead", day: "2026-11-13", email: "pat@example.com", phone: "6315550102", status: "Interested", plan: "90%", howFound: "Google search", source: "google" });
+    expect(fresh[1]).toMatchObject({ day: null, email: "undated@example.com", rowNumber: 4 });
+
+    const instantly = parseLeadSheetTab("Instantly", LEAD_SHEET_TABS_FIXTURE.Instantly);
+    expect(instantly[0]).toMatchObject({ day: "2026-11-05", email: "lee@example.com", plan: "Park Your License", source: "cold_email" });
+  });
+
+  it("normalises plans and answers to \"How did you find us?\"", () => {
+    expect(["Platinum 100% Commission", "Premium 90%", "Referral Agent", "Park Your License", "Unknown"].map(normalizePlan)).toEqual([
+      "100%",
+      "90%",
+      "Referral",
+      "Park Your License",
+      null,
+    ]);
+    // Cells formatted as percentages arrive as fractions.
+    expect([1, 0.9, "0.9"].map(normalizePlan)).toEqual(["100%", "90%", "90%"]);
+    expect(["Google", "A friend referred me", "Your email", "Craigslist", ""].map(sourceFromHowFound)).toEqual([
+      "google",
+      "referral",
+      "cold_email",
+      null,
+      null,
+    ]);
+  });
+
+  it("asks Sheets for whole tabs, unformatted, in one call", async () => {
+    const { fn, calls } = fakeFetch(() => ({ json: { valueRanges: [{ values: [["a"]] }, {}] } }));
+    const tabs = await readTabs(fn, "at", "sheet-id", ["SIGNED!", "Owner's tab"]);
+    const url = new URL(calls[0].url);
+    expect(url.pathname).toBe("/v4/spreadsheets/sheet-id/values:batchGet");
+    expect(url.searchParams.getAll("ranges")).toEqual(["'SIGNED!'", "'Owner''s tab'"]);
+    expect(url.searchParams.get("valueRenderOption")).toBe("UNFORMATTED_VALUE");
+    expect(url.searchParams.get("dateTimeRenderOption")).toBe("SERIAL_NUMBER");
+    expect(tabs).toEqual({ "SIGNED!": [["a"]], "Owner's tab": [] });
+  });
+});
+
+describe("Search Console property", () => {
+  it("prefers the domain property, then the https site, and never an unverified one", () => {
+    const site = (siteUrl: string, permissionLevel = "SITE_FULL_USER") => ({ siteUrl, permissionLevel });
+    expect(pickSpiralSite([site("https://spiralny.com/"), site("sc-domain:spiralny.com")])).toBe("sc-domain:spiralny.com");
+    expect(pickSpiralSite([site("http://spiralny.com/"), site("https://spiralny.com/")])).toBe("https://spiralny.com/");
+    expect(pickSpiralSite([site("sc-domain:spiralny.com", "SITE_UNVERIFIED_USER"), site("sc-domain:other.com")])).toBeNull();
   });
 });

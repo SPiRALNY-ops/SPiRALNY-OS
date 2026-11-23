@@ -89,6 +89,9 @@ describe("buildAnalytics", () => {
         ('m2', 'complete',  '2026-11-11T15:00:00Z', 'cold@example.com', 'https://spiralny.com/100-commission-brokerage/', '11111111-1111-1111-1111-111111111111'),
         ('m3', 'abandoned', '2026-11-12T15:00:00Z', 'web@example.com',  'https://spiralny.com/join-our-team/', '22222222-2222-2222-2222-222222222222'),
         ('m4', 'complete',  '2026-09-01T15:00:00Z', 'old@example.com',  'https://spiralny.com/', null);
+      insert into spiral.gsc_daily_site (day, clicks, impressions, position) values
+        ('2026-11-10', 12, 300, 6.5),
+        ('2026-11-11', 5, 200, 3.0);
       insert into spiral.gsc_daily_page (day, page, clicks, impressions, position) values
         ('2026-11-10', 'https://spiralny.com/100-commission-brokerage/', 12, 300, 6.5),
         ('2026-11-11', 'https://spiralny.com/', 5, 200, 3.0);

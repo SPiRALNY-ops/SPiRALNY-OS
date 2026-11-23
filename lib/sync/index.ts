@@ -12,6 +12,7 @@ import { syncForms } from "./forms";
 import { syncGa4 } from "./ga4";
 import { syncGsc } from "./gsc";
 import { syncInstantly } from "./instantly";
+import { syncLeadSheet } from "./lead-sheet";
 import { closeStaleRuns, recordRun } from "./store";
 import { SYNC_ORDER, type RunSummary, type SourceResult, type SyncConfig, type SyncContext, type SyncSource } from "./types";
 
@@ -29,6 +30,10 @@ export function sourceReadiness(config: SyncConfig, google: GoogleConnection | n
   const ga4 = googleReady(GOOGLE_SCOPES.ga4, "Google Analytics");
   return {
     forms: googleReady(GOOGLE_SCOPES.gmail, "Gmail"),
+    lead_sheet: (() => {
+      const r = googleReady(GOOGLE_SCOPES.sheets, "Google Sheets");
+      return r.ready && !config.leadSheetId ? { ready: false as const, reason: "LEAD_SHEET_ID isn't set." } : r;
+    })(),
     instantly: config.instantlyApiKey ? { ready: true } : { ready: false, reason: "INSTANTLY_API_KEY isn't set." },
     gsc: googleReady(GOOGLE_SCOPES.gsc, "Search Console"),
     ga4: ga4.ready && !config.ga4PropertyId ? { ready: false, reason: "GA4_PROPERTY_ID isn't set." } : ga4,
@@ -37,6 +42,7 @@ export function sourceReadiness(config: SyncConfig, google: GoogleConnection | n
 
 const STEPS: Record<SyncSource, (ctx: SyncContext) => Promise<SourceResult>> = {
   forms: syncForms,
+  lead_sheet: syncLeadSheet,
   instantly: syncInstantly,
   gsc: syncGsc,
   ga4: syncGa4,

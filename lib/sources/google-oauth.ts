@@ -21,6 +21,7 @@ export const GOOGLE_SCOPES = {
   ga4: "https://www.googleapis.com/auth/analytics.readonly",
   gsc: "https://www.googleapis.com/auth/webmasters.readonly",
   gmail: "https://www.googleapis.com/auth/gmail.readonly",
+  sheets: "https://www.googleapis.com/auth/spreadsheets.readonly",
 } as const;
 
 export const ALL_GOOGLE_SCOPES = [
@@ -28,6 +29,7 @@ export const ALL_GOOGLE_SCOPES = [
   GOOGLE_SCOPES.ga4,
   GOOGLE_SCOPES.gsc,
   GOOGLE_SCOPES.gmail,
+  GOOGLE_SCOPES.sheets,
 ];
 
 export type GoogleClient = { clientId: string; clientSecret: string };

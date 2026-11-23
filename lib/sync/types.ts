@@ -2,18 +2,20 @@ import type { Db } from "@/lib/db/types";
 import type { GoogleClient } from "@/lib/sources/google-oauth";
 import type { Fetch } from "@/lib/sources/http";
 
-/** Sources the daily sync fills. ("lead_sheet" comes with the Leads tab.) */
-export type SyncSource = "forms" | "instantly" | "gsc" | "ga4";
+/** Sources the daily sync fills. */
+export type SyncSource = "forms" | "lead_sheet" | "instantly" | "gsc" | "ga4";
 
-/** Run order: form entries first, so the Instantly step can match them to campaigns in the same run. */
-export const SYNC_ORDER: SyncSource[] = ["forms", "instantly", "gsc", "ga4"];
+/** Run order: form entries and the lead sheet first, so the Instantly step can match their emails in the same run. */
+export const SYNC_ORDER: SyncSource[] = ["forms", "lead_sheet", "instantly", "gsc", "ga4"];
 
 export type SyncConfig = {
   timezone: string;
   encryptionKey?: string;
   google?: GoogleClient;
   ga4PropertyId?: string;
-  gscSiteUrl: string;
+  /** Search Console property; when unset, picked from the properties the account can read. */
+  gscSiteUrl?: string;
+  leadSheetId?: string;
   gmailQuery: string;
   instantlyApiKey?: string;
 };

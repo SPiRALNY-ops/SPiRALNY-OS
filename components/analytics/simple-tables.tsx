@@ -50,7 +50,7 @@ export function CampaignsTable({ rows }: { rows: CampaignRow[] }) {
             <TableHead className="text-right">Replies</TableHead>
             <TableHead className="text-right">Reply rate</TableHead>
             <TableHead className="text-right">Interested</TableHead>
-            <TableHead className="text-right">Filled the form</TableHead>
+            <TableHead className="text-right">Became leads</TableHead>
             <TableHead className="text-right">Signed up</TableHead>
           </TableRow>
         </TableHeader>

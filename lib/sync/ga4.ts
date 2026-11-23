@@ -4,7 +4,7 @@
  * re-read the last few days while Google finishes processing them.
  */
 import { addDays } from "@/lib/analytics/range";
-import { fetchGa4Daily } from "@/lib/sources/ga4";
+import { fetchGa4Daily, fetchGa4SiteDaily } from "@/lib/sources/ga4";
 import { hasRows, insertRows, lastSyncedThrough } from "./store";
 import type { SourceResult, SyncContext } from "./types";
 
@@ -14,13 +14,25 @@ const LOOKBACK_DAYS = 3;
 export async function syncGa4(ctx: SyncContext): Promise<SourceResult> {
   const { db, config, today } = ctx;
   const token = await ctx.googleToken!();
-  const through = await lastSyncedThrough(db, "ga4");
+  // Backfill again if the site totals table is new (added after the first syncs).
+  const through = (await hasRows(db, "spiral.ga4_daily_site")) ? await lastSyncedThrough(db, "ga4") : null;
   const start = through ? addDays(through, -LOOKBACK_DAYS) : addDays(today, -BACKFILL_DAYS);
   const end = addDays(today, -1);
 
-  const rows = await fetchGa4Daily(ctx.fetch, token, config.ga4PropertyId!, start, end);
+  const [rows, totals] = await Promise.all([
+    fetchGa4Daily(ctx.fetch, token, config.ga4PropertyId!, start, end),
+    fetchGa4SiteDaily(ctx.fetch, token, config.ga4PropertyId!, start, end),
+  ]);
   await db.transaction(async (tx) => {
     await tx.query("delete from spiral.ga4_daily where day between $1::date and $2::date", [start, end]);
+    await tx.query("delete from spiral.ga4_daily_site where day between $1::date and $2::date", [start, end]);
+    await insertRows(
+      tx,
+      "spiral.ga4_daily_site",
+      [["day", "date"], ["sessions", "integer"], ["engaged_sessions", "integer"], ["users", "integer"]],
+      totals,
+      "on conflict do nothing",
+    );
     await insertRows(
       tx,
       "spiral.ga4_daily",
@@ -39,7 +51,7 @@ export async function syncGa4(ctx: SyncContext): Promise<SourceResult> {
     );
   });
 
-  if (!(await hasRows(db, "spiral.ga4_daily"))) {
+  if (!(await hasRows(db, "spiral.ga4_daily_site"))) {
     return {
       status: "skipped",
       rows: 0,

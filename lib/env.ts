@@ -32,8 +32,13 @@ const schema = z.object({
   // Google (OAuth app in the outreachify.io Workspace, signed in as admin@outreachify.io).
   GOOGLE_CLIENT_ID: optionalString,
   GOOGLE_CLIENT_SECRET: optionalString,
+  // The only Google account allowed to connect. Whatever it can read, Spiral OS can read.
+  GOOGLE_ACCOUNT_EMAIL: optionalString,
   GA4_PROPERTY_ID: optionalString,
-  GSC_SITE_URL: z.string().default("sc-domain:spiralny.com"),
+  // Search Console property. Unset = picked automatically from what the account can read.
+  GSC_SITE_URL: optionalString,
+  // Spiral NY's lead sheet (the ID in its docs.google.com/spreadsheets/d/<ID>/ link).
+  LEAD_SHEET_ID: optionalString,
   // Gmail search that finds the WPForms "Spiral OS" notifications.
   GMAIL_FORMS_QUERY: z.string().default('subject:"Spiral OS entry"'),
 

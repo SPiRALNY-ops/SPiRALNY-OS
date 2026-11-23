@@ -105,12 +105,12 @@ export function AnalyticsDashboard({ view }: { view: AnalyticsView }) {
       <Chapter
         id="cold"
         title="Cold email"
-        intro="Instantly campaigns, and how many of the people emailed went on to fill the form and sign up."
+        intro="Instantly campaigns, and how many of the people emailed became leads and signed up."
       >
         <Section
           title="Campaigns"
           sample={view.coldEmail.origin === "sample"}
-          footer="A form entry counts toward a campaign when its email address is in that campaign's lead list."
+          footer="A lead or sign-up counts toward a campaign when their email address is in that campaign's lead list."
         >
           <CampaignsTable rows={view.coldEmail.rows} />
         </Section>

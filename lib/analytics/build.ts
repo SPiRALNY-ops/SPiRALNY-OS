@@ -13,6 +13,7 @@ import { LEAD_SOURCES, type AnalyticsView, type Kpi, type Origin, type RangeKey,
 /** `waitingFor` completes the sentence "Waiting for …". */
 const SOURCE_INFO: Record<SourceKey, { label: string; waitingFor: string }> = {
   forms: { label: "Sign-up forms", waitingFor: "website access" },
+  lead_sheet: { label: "Lead sheet", waitingFor: "Google sign-in" },
   ga4: { label: "Google Analytics", waitingFor: "access and the tracking code" },
   gsc: { label: "Search Console", waitingFor: "access" },
   instantly: { label: "Instantly", waitingFor: "the API key" },
@@ -40,10 +41,12 @@ export async function buildAnalytics(
   }));
 
   const formsReal = real("forms");
-  const leadsBySource = formsReal
+  // Leads and sign-ups come from the forms and the lead sheet; either one makes them real.
+  const leadsReal = formsReal || real("lead_sheet");
+  const leadsBySource = leadsReal
     ? { origin: "real" as const, buckets: await q.bySource(db, range, timezone, "leads") }
     : { origin: "sample" as const, buckets: sample.sampleBySource(range, "leads") };
-  const signupsBySource = formsReal
+  const signupsBySource = leadsReal
     ? { origin: "real" as const, buckets: await q.bySource(db, range, timezone, "signups") }
     : { origin: "sample" as const, buckets: sample.sampleBySource(range, "signups") };
 
@@ -53,27 +56,30 @@ export async function buildAnalytics(
   const sampleKpis = new Map(sample.sampleKpis(range).map((k) => [k.key, k]));
   const bucketTotals = (buckets: SourceBucket[]) => buckets.map((b) => LEAD_SOURCES.reduce((n, k) => n + b[k], 0));
   const kpis: Kpi[] = [];
+  const [leadsNow, leadsBefore] = leadsReal
+    ? await Promise.all([q.leadTotals(db, current, timezone), q.leadTotals(db, previous, timezone)])
+    : [null, null];
   const [formsNow, formsBefore] = formsReal
     ? await Promise.all([q.formTotals(db, current, timezone), q.formTotals(db, previous, timezone)])
     : [null, null];
   for (const meta of sample.KPI_META) {
-    if (!real(meta.source)) {
+    const isLeadCount = meta.key === "leads" || meta.key === "signups";
+    if (isLeadCount ? !leadsReal : !real(meta.source)) {
       kpis.push(sampleKpis.get(meta.key)!);
       continue;
     }
     let value = 0;
     let before = 0;
     let trend: number[] = range.buckets.map(() => 0);
-    if (meta.source === "forms" && formsNow && formsBefore) {
-      const k = meta.key as "leads" | "signups" | "unfinished";
-      value = formsNow[k];
-      before = formsBefore[k];
-      trend =
-        k === "leads"
-          ? bucketTotals(leadsBySource.buckets)
-          : k === "signups"
-            ? bucketTotals(signupsBySource.buckets)
-            : sumIntoBuckets(range, await q.unfinishedDaily(db, current, timezone));
+    if (isLeadCount && leadsNow && leadsBefore) {
+      const k = meta.key as "leads" | "signups";
+      value = leadsNow[k];
+      before = leadsBefore[k];
+      trend = bucketTotals(k === "leads" ? leadsBySource.buckets : signupsBySource.buckets);
+    } else if (meta.key === "unfinished" && formsNow && formsBefore) {
+      value = formsNow.unfinished;
+      before = formsBefore.unfinished;
+      trend = sumIntoBuckets(range, await q.unfinishedDaily(db, current, timezone));
     } else if (meta.source === "ga4") {
       [value, before] = await Promise.all([q.ga4Visits(db, current), q.ga4Visits(db, previous)]);
       trend = sumIntoBuckets(range, await q.ga4VisitsDaily(db, current));
@@ -104,7 +110,7 @@ export async function buildAnalytics(
     : { origin: "sample" as const, daily: sample.sampleSearchDaily(range), rows: sample.sampleSearches(range) };
 
   const coldEmail = real("instantly")
-    ? { origin: "real" as const, rows: await q.campaignRows(db, current, timezone, formsReal) }
+    ? { origin: "real" as const, rows: await q.campaignRows(db, current, timezone, leadsReal) }
     : { origin: "sample" as const, rows: sample.sampleCampaigns(range) };
 
   return { range, timezone, sources, kpis, leadsBySource, signupsBySource, pages, searches, coldEmail };

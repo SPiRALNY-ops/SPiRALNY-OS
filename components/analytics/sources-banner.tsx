@@ -29,7 +29,7 @@ export function SourcesBanner({ sources }: { sources: SourceStatus[] }) {
       ) : (
         <p className="mb-3 font-bold">All sources connected</p>
       )}
-      <ul className="grid gap-x-2 gap-y-2.5 sm:grid-cols-2 sm:gap-y-2 xl:grid-cols-4">
+      <ul className="grid gap-x-2 gap-y-2.5 sm:grid-cols-2 sm:gap-y-2 lg:grid-cols-3 xl:grid-cols-5">
         {sources.map((s) => {
           const real = s.origin === "real";
           return (

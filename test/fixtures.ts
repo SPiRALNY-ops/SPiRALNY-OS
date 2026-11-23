@@ -24,3 +24,25 @@ Amount: $498.16
 ---
 Name
 Jane Doe`;
+
+/**
+ * The lead sheet's tabs as the Sheets API returns them (unformatted values),
+ * laid out like Spiral NY's real sheet on 2026-11-23. People are made up.
+ */
+export const LEAD_SHEET_TABS_FIXTURE: Record<string, unknown[][]> = {
+  "SIGNED!": [
+    ["Date Joined", "First Name", "Last Name", "Phone number", "Email", "Status", "License Number", "Check if Associated", "Added to WhatsApp Group", "Notes / How did you find us?"],
+    ["November 11, 2026", "Jane", "Doe", 16465550199, "jane@example.com", "Platinum 100%", 10401234567, true, true, "Referral to 90%"],
+    [46340, "Sam ", "Lee", "(917) 555-0101", "sam@example.com", "Park Your License", "40DE0000001", true, false, ""],
+  ],
+  "FWD/FRESH": [
+    ["Date", "First Name", "Last Name", "Phone number", "Email", "Status", "Inquiring about?", "Notes", "How did you find us?", "License Number", "Text", "Email", "Cold-Call"],
+    ["11/13/2026", "Pat", "Kim", "‪(631) 555-0102‬", "Pat@Example.com", "Interested", "90%", "VM", "Google search", "", true, true, true],
+    ["", "", "", "", "", "", "", "", "", "", false, false, false],
+    ["-", "Undated", "Person", "", "undated@example.com", "Interested", "Unknown", "", "", "", true, true, true],
+  ],
+  Instantly: [
+    ["Date of Inquiry", "First Name", "Last Name", "Phone number", "Email", "Status", "Inquiring about?", "Inquiry/Last message", "License Number", "Notes", "Text", "Email", "Cold-Call"],
+    ["November 5, 2026", "Lee", "Park", "718-555-0103", "lee@example.com other@example.com", "Interested", "Park Your License", "How does this work?", "", "VM", true, false, true],
+  ],
+};

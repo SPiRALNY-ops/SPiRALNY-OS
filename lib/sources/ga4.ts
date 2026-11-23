@@ -26,6 +26,34 @@ type RunReportResponse = {
   rowCount?: number;
 };
 
+export type Ga4SiteRow = { day: string; sessions: number; engaged_sessions: number; users: number };
+
+/** The property's own daily totals (date as the only dimension), as Google Analytics reports them. */
+export async function fetchGa4SiteDaily(
+  fetchFn: Fetch,
+  accessToken: string,
+  propertyId: string,
+  start: string,
+  end: string,
+): Promise<Ga4SiteRow[]> {
+  const url = `https://analyticsdata.googleapis.com/v1beta/properties/${encodeURIComponent(propertyId)}:runReport`;
+  const res = await requestJson<RunReportResponse>(fetchFn, url, {
+    service: "Google Analytics",
+    method: "POST",
+    headers: { authorization: `Bearer ${accessToken}` },
+    json: {
+      dateRanges: [{ startDate: start, endDate: end }],
+      dimensions: [{ name: "date" }],
+      metrics: METRICS.map((name) => ({ name })),
+      limit: "100000",
+    },
+  });
+  return (res.rows ?? []).map((r) => {
+    const [sessions, engaged, users] = r.metricValues.map((m) => Math.round(Number(m.value ?? 0)) || 0);
+    return { day: ga4Date(r.dimensionValues[0]?.value ?? ""), sessions, engaged_sessions: engaged, users };
+  });
+}
+
 /** "20261119" -> "2026-11-19" */
 export function ga4Date(value: string): string {
   return /^\d{8}$/.test(value) ? `${value.slice(0, 4)}-${value.slice(4, 6)}-${value.slice(6, 8)}` : value;

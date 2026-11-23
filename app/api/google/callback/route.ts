@@ -7,7 +7,7 @@ import { getDb } from "@/lib/db";
 import { env } from "@/lib/env";
 import { saveGoogleConnection } from "@/lib/sources/google-account";
 import { OAUTH_COOKIE, appUrl, googleRedirectUri, oauthCookieOptions } from "@/lib/sources/google-connect";
-import { exchangeCode, fetchAccountEmail } from "@/lib/sources/google-oauth";
+import { exchangeCode, fetchAccountEmail, revokeToken } from "@/lib/sources/google-oauth";
 import { startSync } from "@/lib/sync/server";
 
 /** Google sends the browser back here after consent. Stores the connection, then starts a first sync. */
@@ -46,6 +46,12 @@ export async function GET(request: Request) {
     );
     if (!tokens.refresh_token) return back("no-refresh-token");
     const accountEmail = await fetchAccountEmail(fetch, tokens.access_token);
+    // Only the account set aside for Spiral OS may connect: its token reads whatever that account can.
+    const allowed = e.GOOGLE_ACCOUNT_EMAIL?.toLowerCase();
+    if (allowed && accountEmail?.toLowerCase() !== allowed) {
+      await revokeToken(fetch, tokens.refresh_token);
+      return back("wrong-account");
+    }
     await saveGoogleConnection(await getDb(), parseKey(e.APP_ENCRYPTION_KEY), {
       accountEmail,
       refreshToken: tokens.refresh_token,

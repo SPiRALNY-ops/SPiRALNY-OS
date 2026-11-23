@@ -15,6 +15,7 @@ export function syncConfigFromEnv(): SyncConfig {
     google: e.GOOGLE_CLIENT_ID && e.GOOGLE_CLIENT_SECRET ? { clientId: e.GOOGLE_CLIENT_ID, clientSecret: e.GOOGLE_CLIENT_SECRET } : undefined,
     ga4PropertyId: e.GA4_PROPERTY_ID,
     gscSiteUrl: e.GSC_SITE_URL,
+    leadSheetId: e.LEAD_SHEET_ID,
     gmailQuery: e.GMAIL_FORMS_QUERY,
     instantlyApiKey: e.INSTANTLY_API_KEY,
   };

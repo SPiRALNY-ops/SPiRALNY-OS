@@ -45,6 +45,7 @@
   --color-chart-3: var(--chart-3);
   --color-chart-4: var(--chart-4);
   --color-chart-5: var(--chart-5);
+  --color-chart-slate: var(--chart-slate);
   --color-chart-grid: var(--chart-grid);
   --color-chart-axis: var(--chart-axis);
   --color-chart-muted: var(--chart-muted);
@@ -121,6 +122,8 @@
   --chart-3: #1baf7a;
   --chart-4: #6250d6;
   --chart-5: #898781;
+  /* one-hue ranked bars: spiralny.com's slate (8.1:1 on white) */
+  --chart-slate: #46515a;
   /* chart chrome */
   --chart-grid: #ebebeb;
   --chart-axis: #c8c8c8;
@@ -173,6 +176,7 @@
   --chart-3: #199e70;
   --chart-4: #9085e9;
   --chart-5: #898781;
+  --chart-slate: #8b97a1; /* 5.5:1 on #1f1f20 */
   --chart-grid: #2c2c2d;
   --chart-axis: #3a3a3b;
   --chart-muted: #898781;

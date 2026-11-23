@@ -5,6 +5,7 @@
  */
 import type { Db } from "@/lib/db/types";
 import { pagePath } from "@/lib/format";
+import { pageGroup, searchGroup } from "./groups";
 import { bucketKeyFor, eachDay } from "./range";
 import type {
   CampaignRow,
@@ -23,6 +24,14 @@ type Period = { start: string; end: string };
 const WHO = "coalesce(fe.person_id::text, lower(fe.email), fe.gmail_message_id)";
 const IN_PERIOD = "(fe.received_at at time zone $3)::date between $1::date and $2::date";
 
+/** Sources whose latest run found nothing to show yet ("skipped"). */
+export async function skippedSources(db: Db): Promise<Set<SourceKey>> {
+  const rows = await db.query<{ source: SourceKey; status: string }>(
+    "select distinct on (source) source, status from spiral.sync_runs where status <> 'running' order by source, started_at desc",
+  );
+  return new Set(rows.filter((r) => r.status === "skipped").map((r) => r.source));
+}
+
 export async function lastSuccessfulSyncs(db: Db): Promise<Partial<Record<SourceKey, string>>> {
   const rows = await db.query<{ source: string; last: Date | string }>(
     "select source, max(finished_at) as last from spiral.sync_runs where status = 'success' group by source",
@@ -36,12 +45,13 @@ export async function lastSuccessfulSyncs(db: Db): Promise<Partial<Record<Source
  * Every lead and sign-up: form entries plus lead sheet rows, each tied to its
  * person where one is known, so someone in both counts once. Uses $3 = time zone.
  */
-const EVENTS = `
+export const EVENTS = `
   select coalesce(fe.person_id::text, lower(fe.email), fe.gmail_message_id) as who,
          (fe.received_at at time zone $3)::date as day,
          fe.entry_type = 'complete' as signup,
          coalesce(p.source, 'unknown') as source,
-         lower(fe.email) as email
+         lower(fe.email) as email,
+         fe.plan as plan
     from spiral.form_entries fe
     left join spiral.people p on p.id = fe.person_id
   union all
@@ -49,7 +59,8 @@ const EVENTS = `
          r.day,
          r.kind = 'signup',
          coalesce(p.source, r.source),
-         lower(r.email)
+         lower(r.email),
+         r.plan
     from spiral.lead_sheet_rows r
     left join spiral.people p on p.id = r.person_id
    where r.day is not null`;
@@ -193,19 +204,33 @@ export async function searchDaily(db: Db, p: Period): Promise<DailySearchPoint[]
     [p.start, p.end],
   );
   const byDay = new Map(rows.map((r) => [r.day, r]));
-  return eachDay(p.start, p.end).map((day) => byDay.get(day) ?? { day, clicks: 0, impressions: 0 });
+  // Days Search Console hasn't reported yet are left off, not drawn as zero.
+  const [last] = await db.query<{ d: string | null }>("select max(day)::text as d from spiral.gsc_daily_site");
+  const end = last?.d && last.d < p.end ? last.d : p.end;
+  return eachDay(p.start, end).map((day) => byDay.get(day) ?? { day, clicks: 0, impressions: 0 });
 }
 
 const SEARCH_COLUMNS = `sum(clicks)::int as clicks, sum(impressions)::int as impressions,
   coalesce(sum(position * impressions) / nullif(sum(impressions), 0), 0)::float8 as position`;
 
-export async function topSearches(db: Db, p: Period, limit = 25): Promise<SearchRow[]> {
-  return db.query<SearchRow>(
+/** The top searches of each group (by clicks, then times shown), so quiet groups still show their searches. */
+export async function topSearches(db: Db, p: Period, perGroup = 40): Promise<SearchRow[]> {
+  const rows = await db.query<Omit<SearchRow, "group">>(
     `select query, ${SEARCH_COLUMNS}
        from spiral.gsc_daily where day between $1::date and $2::date
-      group by query order by clicks desc, impressions desc limit ${Number(limit)}`,
+      group by query order by clicks desc, impressions desc limit 5000`,
     [p.start, p.end],
   );
+  const taken = new Map<string, number>();
+  const out: SearchRow[] = [];
+  for (const r of rows) {
+    const group = searchGroup(r.query);
+    const n = taken.get(group) ?? 0;
+    if (n >= perGroup) continue;
+    taken.set(group, n + 1);
+    out.push({ ...r, group });
+  }
+  return out;
 }
 
 export async function pageRows(
@@ -221,6 +246,7 @@ export async function pageRows(
     if (!r) {
       r = {
         path,
+        group: pageGroup(raw),
         visits: opts.withVisits ? 0 : null,
         googleClicks: 0,
         leads: opts.withForms ? 0 : null,
@@ -267,7 +293,7 @@ export async function pageRows(
     }
   }
 
-  const searches = await db.query<SearchRow & { page: string }>(
+  const searches = await db.query<Omit<SearchRow, "group"> & { page: string }>(
     `select page, query, ${SEARCH_COLUMNS}
        from spiral.gsc_daily where day between $1::date and $2::date
       group by page, query`,
@@ -275,7 +301,7 @@ export async function pageRows(
   );
   for (const s of searches) {
     const r = rows.get(pagePath(s.page));
-    if (r) r.topSearches.push({ query: s.query, clicks: s.clicks, impressions: s.impressions, position: s.position });
+    if (r) r.topSearches.push({ query: s.query, clicks: s.clicks, impressions: s.impressions, position: s.position, group: searchGroup(s.query) });
   }
   for (const r of rows.values()) {
     r.topSearches = r.topSearches.sort((a, b) => b.clicks - a.clicks || b.impressions - a.impressions).slice(0, 5);
@@ -286,20 +312,22 @@ export async function pageRows(
       (a, b) =>
         (b.signups ?? 0) - (a.signups ?? 0) || (b.leads ?? 0) - (a.leads ?? 0) || b.googleClicks - a.googleClicks,
     )
-    .slice(0, 25);
+    .slice(0, 60);
 }
 
 export async function campaignRows(db: Db, p: Period, tz: string, withLeads: boolean): Promise<CampaignRow[]> {
   // Instantly's own totals when the last sync stored them for this period (they match its screens);
   // otherwise daily numbers added up.
   const source = (await hasInstantlyTotals(db, p))
-    ? "(select campaign_id, sent, replies, interested from spiral.instantly_range_totals where range_start = $1::date and range_end = $2::date)"
-    : "(select campaign_id, sent, replies, interested from spiral.instantly_campaign_daily where day between $1::date and $2::date)";
+    ? "(select campaign_id, sent, contacted, replies, interested, bounced from spiral.instantly_range_totals where range_start = $1::date and range_end = $2::date)"
+    : "(select campaign_id, sent, contacted, replies, interested, 0 as bounced from spiral.instantly_campaign_daily where day between $1::date and $2::date)";
   const campaigns = await db.query<Omit<CampaignRow, "leads" | "signups">>(
     `select c.id, c.name,
             coalesce(sum(d.sent), 0)::int as sent,
+            coalesce(sum(d.contacted), 0)::int as contacted,
             coalesce(sum(d.replies), 0)::int as replies,
-            coalesce(sum(d.interested), 0)::int as interested
+            coalesce(sum(d.interested), 0)::int as interested,
+            coalesce(sum(d.bounced), 0)::int as bounced
        from spiral.instantly_campaigns c
        left join ${source} d on d.campaign_id = c.id
       group by c.id, c.name

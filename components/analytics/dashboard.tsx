@@ -1,21 +1,33 @@
 import { Clock3, CreditCard } from "lucide-react";
-import type { AnalyticsView } from "@/lib/analytics/types";
+import type { AnalyticsView, KpiKey } from "@/lib/analytics/types";
+import { ColdFunnel, ColdHealth, CampaignsSection, EmailSteps } from "./cold-email-section";
 import { KpiStrip } from "./kpi-tiles";
+import { LeadStatusCard, PlansCard } from "./leads-details";
 import { PagesTable } from "./pages-table";
-import { RangeFrame } from "./range-frame";
+import { RangeFrame, type Chapter as ChapterLink } from "./range-frame";
+import { PageMix, SearchMix, SearchSummary } from "./search-section";
 import { SearchTrend } from "./search-trend";
 import { Section } from "./section";
 import { SignupsHero } from "./signups-hero";
-import { CampaignsTable, SearchesTable } from "./simple-tables";
+import { SearchesTable } from "./simple-tables";
 import { SourceChart } from "./source-chart";
 import { SourcesBanner } from "./sources-banner";
+import { WebsiteSection } from "./website-section";
+
+const CHAPTERS: ChapterLink[] = [
+  { id: "overview", label: "Overview" },
+  { id: "leads", label: "Leads & sign-ups" },
+  { id: "search", label: "Google search" },
+  { id: "website", label: "Website" },
+  { id: "cold", label: "Cold email" },
+];
 
 /** A chapter of the page, headed the way spiralny.com heads its sections: bold, with the orange rule. */
-function Chapter({ id, title, intro, children }: { id: string; title: string; intro: string; children: React.ReactNode }) {
+function Chapter({ id, title, intro, children }: { id: string; title: string; intro: React.ReactNode; children: React.ReactNode }) {
   return (
-    <section aria-labelledby={id} className="mt-6 flex flex-col gap-4 first:mt-0">
+    <section id={id} aria-labelledby={`${id}-title`} className="mt-8 flex scroll-mt-32 flex-col gap-5 lg:scroll-mt-20">
       <header>
-        <h2 id={id} className="brand-underline text-xl font-bold tracking-tight">
+        <h2 id={`${id}-title`} className="brand-underline text-xl font-bold tracking-tight sm:text-[1.375rem]">
           {title}
         </h2>
         <p className="mt-2.5 max-w-3xl text-sm text-muted-foreground">{intro}</p>
@@ -42,60 +54,78 @@ function NotConnected({ icon: Icon, title, body, needs }: { icon: typeof Clock3;
 
 export function AnalyticsDashboard({ view }: { view: AnalyticsView }) {
   const period = view.range.label.replace(/^Last /, "").toLowerCase();
-  const kpi = (key: string) => view.kpis.find((k) => k.key === key)!;
+  const kpi = (key: KpiKey) => view.kpis.find((k) => k.key === key)!;
+  const sum = (buckets: AnalyticsView["leadsBySource"]["buckets"], key: "cold_email") => buckets.reduce((s, b) => s + b[key], 0);
 
   return (
-    <RangeFrame current={view.range.key} aside={<>Dates in New York time</>}>
-      <SourcesBanner sources={view.sources} />
+    <RangeFrame current={view.range.key} chapters={CHAPTERS}>
+      <section id="overview" aria-label="Overview" className="flex scroll-mt-32 flex-col gap-5 lg:scroll-mt-20">
+        <SourcesBanner sources={view.sources} />
+        <SignupsHero
+          signups={kpi("signups")}
+          leads={kpi("leads")}
+          buckets={view.signupsBySource.buckets}
+          sample={view.signupsBySource.origin === "sample"}
+          periodLabel={period}
+        />
+        <KpiStrip kpis={view.kpis.filter((k) => k.key !== "signups")} periodLabel={period} />
+      </section>
 
-      <SignupsHero
-        signups={kpi("signups")}
-        leads={kpi("leads")}
-        buckets={view.signupsBySource.buckets}
-        sample={view.signupsBySource.origin === "sample"}
-        periodLabel={period}
-      />
-
-      <KpiStrip kpis={view.kpis.filter((k) => k.key !== "signups")} periodLabel={period} />
-
-      <Chapter id="where" title="Where leads come from" intro="Each person counted once, on the day of their first form.">
+      <Chapter
+        id="leads"
+        title="Leads & sign-ups"
+        intro="Everyone who came in from the forms or the lead sheet, each person counted once, on the day they first appeared."
+      >
         <div className="grid gap-5 xl:grid-cols-2">
           <SourceChart
             title="New leads by source"
-            description="Everyone who started a sign-up form."
+            description="Everyone who started a sign-up form or was added to the lead sheet."
             buckets={view.leadsBySource.buckets}
             sample={view.leadsBySource.origin === "sample"}
             noun="leads"
           />
           <SourceChart
             title="Sign-ups by source"
-            description="Forms completed with payment."
+            description="Agents who completed a sign-up or were added to the SIGNED! tab."
             buckets={view.signupsBySource.buckets}
             sample={view.signupsBySource.origin === "sample"}
             noun="sign-ups"
           />
         </div>
+        <PlansCard plans={view.plans} periodLabel={period} />
+        <LeadStatusCard status={view.leadStatus} />
       </Chapter>
 
       <Chapter
-        id="what"
-        title="What brings them in"
-        intro="The spiralny.com pages people land on, and the Google searches that bring them there."
+        id="search"
+        title="Google search"
+        intro="How often spiralny.com shows up in Google, what people searched for, and which pages they landed on. From Search Console, which reports with a 2 to 3 day delay."
       >
+        <SearchSummary search={view.searches} periodLabel={period} />
+        <SearchTrend
+          daily={view.searches.daily}
+          sample={view.searches.origin === "sample"}
+          rangeEnd={view.range.end}
+          buckets={view.range.buckets}
+          bucketSize={view.range.bucketSize}
+        />
+        <SearchMix search={view.searches} />
+        <PageMix pages={view.pages} siteClicks={view.searches.totals.clicks} />
         <Section
-          title="Pages that bring sign-ups"
-          description="Open a page to see the Google searches behind it."
+          title="Pages"
+          description={
+            view.website.origin === "real" && view.coverage.ga4 && view.coverage.ga4 > view.range.start
+              ? `Pages Google sent people to. Visits only count from ${new Date(`${view.coverage.ga4}T12:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" })}, when Google Analytics started recording. Filter by type, sort any column, and open a page to see its searches.`
+              : "Pages Google sent people to, with their visits. Filter by type, sort any column, and open a page to see the searches behind it."
+          }
           sample={view.pages.origin === "sample"}
           footer="Google doesn't share what each visitor searched, so searches are shown per page, not per person."
         >
           <PagesTable rows={view.pages.rows} />
         </Section>
-
-        <SearchTrend daily={view.searches.daily} sample={view.searches.origin === "sample"} />
-
         <Section
-          title="What people searched on Google"
-          description="Searches where spiralny.com appeared, by clicks."
+          title="Searches"
+          description="The top 40 searches in each group: how often each showed spiralny.com, was clicked, and where the site ranked."
           sample={view.searches.origin === "sample"}
         >
           <SearchesTable rows={view.searches.rows} />
@@ -103,17 +133,27 @@ export function AnalyticsDashboard({ view }: { view: AnalyticsView }) {
       </Chapter>
 
       <Chapter
+        id="website"
+        title="Website"
+        intro="Visits to spiralny.com from Google Analytics: how people arrive, on which device, and where they start."
+      >
+        <WebsiteSection website={view.website} since={view.coverage.ga4} rangeStart={view.range.start} periodLabel={period} />
+      </Chapter>
+
+      <Chapter
         id="cold"
         title="Cold email"
-        intro="Instantly campaigns, and how many of the people emailed became leads and signed up."
+        intro="Instantly campaigns, from the first email to a signed agent: who replied, which email works best, and how cleanly the emails are delivered."
       >
-        <Section
-          title="Campaigns"
-          sample={view.coldEmail.origin === "sample"}
-          footer="A lead or sign-up counts toward a campaign when their email address is in that campaign's lead list."
-        >
-          <CampaignsTable rows={view.coldEmail.rows} />
-        </Section>
+        <ColdFunnel
+          cold={view.coldEmail}
+          leads={sum(view.leadsBySource.buckets, "cold_email")}
+          signups={sum(view.signupsBySource.buckets, "cold_email")}
+          periodLabel={period}
+        />
+        <ColdHealth cold={view.coldEmail} />
+        <EmailSteps cold={view.coldEmail} />
+        <CampaignsSection cold={view.coldEmail} />
       </Chapter>
 
       <Chapter id="later" title="Coming with other tools" intro="Two more answers from the plan, once their data exists.">

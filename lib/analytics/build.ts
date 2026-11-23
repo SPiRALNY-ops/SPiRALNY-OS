@@ -5,6 +5,7 @@
  * shows "—" for columns whose source isn't connected yet.
  */
 import type { Db } from "@/lib/db/types";
+import * as d from "./details";
 import * as q from "./queries";
 import { resolveRange, sumIntoBuckets } from "./range";
 import * as sample from "./sample";
@@ -17,6 +18,15 @@ const SOURCE_INFO: Record<SourceKey, { label: string; waitingFor: string }> = {
   ga4: { label: "Google Analytics", waitingFor: "access and the tracking code" },
   gsc: { label: "Search Console", waitingFor: "access" },
   instantly: { label: "Instantly", waitingFor: "the API key" },
+};
+
+/** What a connected source is waiting for when its last sync found nothing yet. */
+const FIRST_DATA: Record<SourceKey, string> = {
+  forms: "the first form entry (notifications are set up)",
+  lead_sheet: "the first dated row on the lead sheet",
+  ga4: "the first visits to be recorded",
+  gsc: "Search Console data for spiralny.com",
+  instantly: "the first campaign",
 };
 
 export async function buildAnalytics(
@@ -33,9 +43,12 @@ export async function buildAnalytics(
   const real = (s: SourceKey) => Boolean(synced[s]);
   const origin = (s: SourceKey): Origin => (real(s) ? "real" : "sample");
 
+  // A source that is connected but has nothing yet is waiting for its first data, not for access.
+  const skipped = await q.skippedSources(db);
   const sources: SourceStatus[] = (Object.keys(SOURCE_INFO) as SourceKey[]).map((key) => ({
     key,
     ...SOURCE_INFO[key],
+    waitingFor: !synced[key] && skipped.has(key) ? FIRST_DATA[key] : SOURCE_INFO[key].waitingFor,
     origin: origin(key),
     lastSuccessAt: synced[key] ?? null,
   }));
@@ -51,6 +64,18 @@ export async function buildAnalytics(
     : { origin: "sample" as const, buckets: sample.sampleBySource(range, "signups") };
 
   const searchDaily = real("gsc") ? await q.searchDaily(db, current) : null;
+  const coverage = await d.coverage(db, timezone);
+  const coverageEnd = await d.coverageEnd(db);
+  /** Buckets wholly before a source's first day or after its last are gaps, not zeros. */
+  const withGaps = (trend: number[], key: keyof typeof coverage): (number | null)[] =>
+    trend.map((v, i) => {
+      const b = range.buckets[i];
+      const first = coverage[key];
+      const last = coverageEnd[key];
+      return (first && b.end < first) || (last && b.start > last) ? null : v;
+    });
+  /** A comparison is only fair if the source has data for the whole period before. */
+  const comparable = (key: keyof typeof coverage) => Boolean(coverage[key] && coverage[key]! <= previous.start);
 
   // KPIs: each tile follows its own source, trend line included.
   const sampleKpis = new Map(sample.sampleKpis(range).map((k) => [k.key, k]));
@@ -90,28 +115,76 @@ export async function buildAnalytics(
       [value, before] = await Promise.all([q.instantlyReplies(db, current), q.instantlyReplies(db, previous)]);
       trend = sumIntoBuckets(range, await q.instantlyRepliesDaily(db, current));
     }
-    kpis.push({ ...meta, value, previous: before, trend, origin: "real" });
+    const coverageKey = isLeadCount ? "leads" : meta.source;
+    kpis.push({ ...meta, value, previous: comparable(coverageKey) ? before : null, trend: withGaps(trend, coverageKey), origin: "real" });
   }
+
+  const plans = leadsReal
+    ? { origin: "real" as const, ...(await d.plans(db, current, timezone)) }
+    : { origin: "sample" as const, ...sample.samplePlans(range) };
+
+  const leadStatus = real("lead_sheet")
+    ? { origin: "real" as const, rows: await d.leadStatus(db, current) }
+    : { origin: "sample" as const, rows: sample.sampleLeadStatus(range) };
 
   const gscReal = real("gsc");
   const pages = gscReal
     ? {
         origin: "real" as const,
         rows: await q.pageRows(db, current, timezone, { withVisits: real("ga4"), withForms: formsReal }),
+        groups: await d.pageGroups(db, current),
       }
-    : { origin: "sample" as const, rows: sample.samplePages(range) };
+    : { origin: "sample" as const, rows: sample.samplePages(range), groups: sample.samplePageGroups(range) };
 
   const searches = gscReal
     ? {
         origin: "real" as const,
         daily: searchDaily ?? [],
         rows: await q.topSearches(db, current),
+        totals: await d.searchTotals(db, current),
+        previous: comparable("gsc") ? await d.searchTotals(db, previous) : null,
+        groups: await d.searchGroups(db, current),
       }
-    : { origin: "sample" as const, daily: sample.sampleSearchDaily(range), rows: sample.sampleSearches(range) };
+    : {
+        origin: "sample" as const,
+        daily: sample.sampleSearchDaily(range),
+        rows: sample.sampleSearches(range),
+        ...sample.sampleSearchTotals(range),
+        groups: sample.sampleSearchGroups(range),
+      };
 
-  const coldEmail = real("instantly")
-    ? { origin: "real" as const, rows: await q.campaignRows(db, current, timezone, leadsReal) }
-    : { origin: "sample" as const, rows: sample.sampleCampaigns(range) };
+  const website = real("ga4")
+    ? { origin: "real" as const, ...(await d.website(db, current)) }
+    : { origin: "sample" as const, ...sample.sampleWebsite(range) };
 
-  return { range, timezone, sources, kpis, leadsBySource, signupsBySource, pages, searches, coldEmail };
+  let coldEmail: AnalyticsView["coldEmail"];
+  if (real("instantly")) {
+    const funnel = await d.coldFunnel(db, current);
+    coldEmail = {
+      origin: "real",
+      rows: await q.campaignRows(db, current, timezone, leadsReal),
+      funnel: funnel?.funnel ?? [],
+      health: funnel?.health ?? null,
+      steps: await d.emailSteps(db, current),
+    };
+  } else {
+    coldEmail = { origin: "sample", rows: sample.sampleCampaigns(range), ...sample.sampleColdFunnel(range) };
+  }
+
+  return {
+    range,
+    timezone,
+    sources,
+    kpis,
+    leadsBySource,
+    signupsBySource,
+    plans,
+    leadStatus,
+    pages,
+    searches,
+    website,
+    coldEmail,
+    coverage,
+    coverageEnd,
+  };
 }

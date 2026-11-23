@@ -1,0 +1,72 @@
+import type { AnalyticsView } from "@/lib/analytics/types";
+import { formatFull } from "@/lib/format";
+import { BarList } from "./bar-list";
+import { Section } from "./section";
+
+export function Count({ n }: { n: number }) {
+  return <span className="ml-1.5 rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground tabular">{formatFull(n)}</span>;
+}
+
+const top = (rows: { label: string; value: number; key: string }[]) => rows.filter((r) => r.key !== "none").sort((a, b) => b.value - a.value)[0];
+
+/** Which plans agents chose, and which plans leads asked about. */
+export function PlansCard({ plans, periodLabel }: { plans: AnalyticsView["plans"]; periodLabel: string }) {
+  const joined = plans.joined.reduce((s, r) => s + r.value, 0);
+  const asked = plans.asked.reduce((s, r) => s + r.value, 0);
+  const topJoined = top(plans.joined);
+  const topAsked = top(plans.asked);
+  return (
+    <Section
+      title="Plans"
+      description={
+        topJoined && topJoined.value
+          ? `${topJoined.label} is the plan most agents chose in the last ${periodLabel}${topAsked && topAsked.value ? `; leads asked most about ${topAsked.label}` : ""}.`
+          : "Which plan agents joined on, and which plan leads asked about."
+      }
+      sample={plans.origin === "sample"}
+      footer="From the sign-up forms and the lead sheet (SIGNED! status, and “Inquiring about?” on the lead tabs). Each person is counted once per plan."
+    >
+      <div className="grid gap-8 md:grid-cols-2">
+        <div>
+          <h4 className="mb-3 text-sm font-semibold">
+            Agents who joined <Count n={joined} />
+          </h4>
+          <BarList items={plans.joined} label="Plans agents joined" emptyText="No sign-ups in this period." />
+        </div>
+        <div>
+          <h4 className="mb-3 text-sm font-semibold">
+            What leads asked about <Count n={asked} />
+          </h4>
+          <BarList items={plans.asked} label="Plans leads asked about" emptyText="No leads in this period." />
+        </div>
+      </div>
+    </Section>
+  );
+}
+
+/** Where this period's leads stand now, from the lead sheet's Status column. */
+export function LeadStatusCard({ status }: { status: AnalyticsView["leadStatus"] }) {
+  const total = status.rows.reduce((s, r) => s + r.value, 0);
+  const n = (k: string) => status.rows.find((r) => r.key === k)?.value ?? 0;
+  const parts = [
+    n("signed") && `${formatFull(n("signed"))} signed up`,
+    n("interested") && `${formatFull(n("interested"))} ${n("interested") === 1 ? "is" : "are"} interested`,
+    n("following") && `${formatFull(n("following"))} ${n("following") === 1 ? "is" : "are"} being followed up`,
+    n("not") && `${formatFull(n("not"))} said no`,
+  ].filter(Boolean) as string[];
+  const sentence = parts.length > 1 ? `${parts.slice(0, -1).join(", ")} and ${parts.at(-1)}` : parts[0];
+  return (
+    <Section
+      title="Where these leads stand"
+      description={
+        total && sentence
+          ? `Of ${formatFull(total)} leads from this period, ${sentence}.`
+          : "The status Spiral NY's team gave each lead."
+      }
+      sample={status.origin === "sample"}
+      footer="From the Status column on the lead sheet's FWD/FRESH and Instantly tabs, as it reads today. Leads with no date on the sheet aren't counted."
+    >
+      <BarList items={status.rows} label="Lead status" emptyText="No leads on the sheet in this period." />
+    </Section>
+  );
+}

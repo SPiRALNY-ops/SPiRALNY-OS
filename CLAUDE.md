@@ -28,6 +28,12 @@ See everything → Step 2 Onboarding → Step 3 AI calls → Step 4 Georgia and 
 - Lead-source stacking order is google → referral → cold_email → unknown (validated: aqua beside grey
   fails colour-blind separation). Inside the charcoal band, series use their dark-surface steps (`.hero-band`).
 - Big numbers use proportional figures; `.tabular` only for aligned columns.
+- Every section says its finding in one plain sentence (computed), explains terms behind a "?" (`InfoTip`),
+  and states its source and caveats in the footer. One-hue ranked bars use `--chart-slate` (site slate).
+- Honesty rules: no comparison when a source has no data for the whole previous period ("No earlier data");
+  days a source hasn't reported or recorded are gaps, never zeros; partial first/last months are labelled;
+  rates use a denominator that means what it says (Instantly's "contacted" is a daily sum, so rates use
+  emails sent; "new people emailed" is the unique count). Columns with no data yet are hidden, with a note.
 
 ## Stack
 Next.js 16 (App Router, `cacheComponents` on) · React 19 · TypeScript · Tailwind v4 · shadcn/ui (Radix) ·
@@ -44,8 +50,9 @@ With Cache Components: anything that reads cookies, search params or the databas
 - `lib/db/` — Postgres (`DATABASE_URL`) or embedded PGlite locally; `runMigrations`.
 - `supabase/migrations/` — numbered, re-runnable SQL. All tables in schema `spiral`, RLS on, no grants to
   anon/authenticated. Apply to Supabase with `npm run db:migrate`.
-- `lib/analytics/` — `build.ts` (assembles the view; real vs sample per source), `queries.ts` (SQL),
-  `sample.ts` (deterministic sample), `range.ts` (New York dates, buckets).
+- `lib/analytics/` — `build.ts` (assembles the view; real vs sample per source), `queries.ts` (core SQL),
+  `details.ts` (plans, lead status, search/page groups, website, cold email funnel and steps, coverage),
+  `groups.ts` (plain rules for search and page groups, shown on the page), `sample.ts`, `range.ts`.
 - `components/analytics/` — dashboard, charts, tables, OpsLabs-only connections panel. `lib/tools.ts` — the 10 tools.
 - `lib/sources/` — one API client per source (plain `fetch`, injected for tests): Google OAuth (PKCE),
   GA4 Data API, Search Console, Gmail, Instantly v2, and the WPForms notification parser. Every endpoint

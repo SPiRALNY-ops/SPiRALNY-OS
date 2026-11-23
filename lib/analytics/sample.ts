@@ -5,10 +5,17 @@
  * Page paths are real spiralny.com pages; searches and campaign names are
  * illustrative only.
  */
+import { PAGE_GROUPS, SEARCH_GROUPS, pageGroup, searchGroup, type PageGroupKey, type SearchGroupKey } from "./groups";
 import { bucketKeyFor, eachDay, sumIntoBuckets } from "./range";
 import type {
   CampaignRow,
   DailySearchPoint,
+  EmailStepRow,
+  FunnelStep,
+  GroupRow,
+  LandingRow,
+  Ranked,
+  SearchStats,
   DateRange,
   Kpi,
   KpiKey,
@@ -157,6 +164,7 @@ export function sampleSearches(range: DateRange): SearchRow[] {
         clicks,
         impressions: Math.round(clicks / ctr),
         position: Math.round((2 + 14 * rand(`pos:${query}`)) * 10) / 10,
+        group: searchGroup(query),
       });
     });
   }
@@ -177,6 +185,7 @@ export function samplePages(range: DateRange): PageRow[] {
     const leads = Math.round(totals.leads * p.weight * jitter("leads"));
     return {
       path: p.path,
+      group: pageGroup(p.path),
       visits: Math.round(totals.visits * p.weight * jitter("visits")),
       googleClicks: Math.round(totals.clicks * p.weight * jitter("clicks")),
       leads,
@@ -201,14 +210,118 @@ export function sampleCampaigns(range: DateRange): CampaignRow[] {
   return SAMPLE_CAMPAIGNS.map((c) => {
     const j = (m: string) => 0.8 + 0.4 * rand(`${range.key}:${c.id}:${m}`);
     const campaignReplies = Math.round(replies * c.weight * j("replies"));
+    const sent = Math.round(days.length * 460 * c.weight * j("sent"));
+    const contacted = Math.round(sent * 0.86);
     return {
       id: c.id,
       name: c.name,
-      sent: Math.round(days.length * 460 * c.weight * j("sent")),
+      sent,
+      contacted,
       replies: campaignReplies,
       interested: Math.round(campaignReplies * (0.22 + 0.15 * rand(`${c.id}:int`))),
+      bounced: Math.round(contacted * (0.015 + 0.02 * rand(`${c.id}:bounce`))),
       leads: Math.round(leads * c.weight * j("leads")),
       signups: Math.round(signups * c.weight * j("signups")),
     };
   });
+}
+
+/** Spreads a total over named parts by fixed shares, so the parts add back up to the total. */
+function spread<K extends string>(total: number, shares: [K, number][]): Map<K, number> {
+  const out = new Map<K, number>();
+  let left = total;
+  shares.forEach(([k, share], i) => {
+    const n = i === shares.length - 1 ? left : Math.min(left, Math.round(total * share));
+    out.set(k, n);
+    left -= n;
+  });
+  return out;
+}
+
+export function samplePlans(range: DateRange): { joined: Ranked[]; asked: Ranked[] } {
+  const k = sampleKpis(range);
+  const signups = k.find((x) => x.key === "signups")!.value;
+  const leads = k.find((x) => x.key === "leads")!.value;
+  const label = { park: "Park Your License", p90: "90% commission", ref: "Referral agent", p100: "100% commission", none: "Not stated" };
+  const joined = spread(signups, [["park", 0.42], ["p90", 0.26], ["ref", 0.22], ["p100", 0.1]] as [keyof typeof label, number][]);
+  const asked = spread(leads, [["p90", 0.3], ["park", 0.22], ["ref", 0.17], ["p100", 0.1], ["none", 0.21]] as [keyof typeof label, number][]);
+  const rank = (m: Map<keyof typeof label, number>) =>
+    [...m].map(([key, value]) => ({ key, label: label[key], value })).sort((a, b) => (a.key === "none" ? 1 : b.key === "none" ? -1 : b.value - a.value));
+  return { joined: rank(joined), asked: rank(asked) };
+}
+
+export function sampleLeadStatus(range: DateRange): Ranked[] {
+  const leads = sampleKpis(range).find((x) => x.key === "leads")!.value;
+  const m = spread(leads, [["signed", 0.14], ["interested", 0.3], ["following", 0.43], ["not", 0.13]]);
+  const label = { signed: "Signed up", interested: "Interested", following: "Following up", not: "Not interested" };
+  return [...m].map(([key, value]) => ({ key, label: label[key as keyof typeof label], value }));
+}
+
+function sampleStats(days: DailySearchPoint[], salt: string): SearchStats {
+  const clicks = days.reduce((s, d) => s + d.clicks, 0);
+  const impressions = days.reduce((s, d) => s + d.impressions, 0);
+  return { clicks, impressions, ctr: impressions ? clicks / impressions : 0, position: 11 + 4 * rand(`pos:${salt}`) };
+}
+
+export function sampleSearchTotals(range: DateRange): { totals: SearchStats; previous: SearchStats } {
+  const prev = eachDay(range.previousStart, range.previousEnd).map((day) => {
+    const n = dayNumbers(day, range.end);
+    return { day, clicks: n.googleClicks, impressions: n.impressions };
+  });
+  return { totals: sampleStats(sampleSearchDaily(range), `${range.key}:now`), previous: sampleStats(prev, `${range.key}:before`) };
+}
+
+export function sampleSearchGroups(range: DateRange): GroupRow<SearchGroupKey>[] {
+  const { totals } = sampleSearchTotals(range);
+  const clicks = spread(Math.round(totals.clicks * 0.82), [["brand", 0.56], ["recruiting", 0.09], ["other", 0.35]] as [SearchGroupKey, number][]);
+  const impr = spread(Math.round(totals.impressions * 0.7), [["brand", 0.09], ["recruiting", 0.23], ["other", 0.68]] as [SearchGroupKey, number][]);
+  const items: Record<SearchGroupKey, number> = { brand: 30, recruiting: 900, other: 2200 };
+  return SEARCH_GROUPS.map((g) => ({ ...g, clicks: clicks.get(g.key)!, impressions: impr.get(g.key)!, items: items[g.key] }));
+}
+
+export function samplePageGroups(range: DateRange): GroupRow<PageGroupKey>[] {
+  const { totals } = sampleSearchTotals(range);
+  const share: [PageGroupKey, number][] = [["home", 0.46], ["recruiting", 0.18], ["agents", 0.2], ["blog", 0.04], ["other", 0.12]];
+  const clicks = spread(totals.clicks, share);
+  const impr = spread(totals.impressions, [["home", 0.28], ["recruiting", 0.2], ["agents", 0.12], ["blog", 0.16], ["other", 0.24]] as [PageGroupKey, number][]);
+  const items: Record<PageGroupKey, number> = { home: 1, recruiting: 24, agents: 60, blog: 170, other: 90 };
+  return PAGE_GROUPS.map((g) => ({ ...g, clicks: clicks.get(g.key)!, impressions: impr.get(g.key)!, items: items[g.key] }));
+}
+
+export function sampleWebsite(range: DateRange) {
+  const sessions = sampleKpis(range).find((x) => x.key === "visits")!.value;
+  const channels = spread(sessions, [["Organic Search", 0.41], ["Direct", 0.34], ["Referral", 0.1], ["Organic Social", 0.08], ["Email", 0.07]]);
+  const devices = spread(sessions, [["Mobile", 0.54], ["Desktop", 0.43], ["Tablet", 0.03]]);
+  const landing: LandingRow[] = SAMPLE_PAGES.map((p) => {
+    const s = Math.round(sessions * p.weight * (0.8 + 0.4 * rand(`${range.key}:land:${p.path}`)));
+    return { path: p.path, group: pageGroup(p.path), sessions: s, engaged: Math.round(s * (0.45 + 0.2 * rand(`eng:${p.path}`))) };
+  }).sort((a, b) => b.sessions - a.sessions);
+  const toRanked = (m: Map<string, number>): Ranked[] => [...m].map(([key, value]) => ({ key, label: key, value }));
+  return { sessions, engaged: Math.round(sessions * 0.52), channels: toRanked(channels), devices: toRanked(devices), landing };
+}
+
+export function sampleColdFunnel(range: DateRange): { funnel: FunnelStep[]; health: { sent: number; newContacted: number; bounced: number; unsubscribed: number }; steps: EmailStepRow[] } {
+  const rows = sampleCampaigns(range);
+  const contacted = rows.reduce((s, r) => s + r.contacted, 0);
+  const replied = rows.reduce((s, r) => s + r.replies, 0);
+  const interested = rows.reduce((s, r) => s + r.interested, 0);
+  const sent = rows.reduce((s, r) => s + r.sent, 0);
+  const sentPerStep = spread<string>(sent, [["0", 0.34], ["1", 0.28], ["2", 0.22], ["3", 0.16]]);
+  const repliesPerStep = spread<string>(replied, [["0", 0.24], ["1", 0.34], ["2", 0.25], ["3", 0.17]]);
+  const oppsPerStep = spread<string>(interested, [["0", 0.22], ["1", 0.36], ["2", 0.26], ["3", 0.16]]);
+  return {
+    funnel: [
+      { key: "sent", label: "Emails sent", value: sent, note: "Every email in the period, follow-ups included." },
+      { key: "replied", label: "Replied", value: replied, note: "Different people who replied. Out-of-office replies are left out." },
+      { key: "interested", label: "Marked interested", value: interested },
+    ],
+    health: { sent, newContacted: Math.round(contacted * 0.3), bounced: rows.reduce((s, r) => s + r.bounced, 0), unsubscribed: Math.round(contacted * 0.002) },
+    steps: [0, 1, 2, 3].map((step) => ({
+      step,
+      variant: 0,
+      sent: sentPerStep.get(String(step))!,
+      replies: repliesPerStep.get(String(step))!,
+      opportunities: oppsPerStep.get(String(step))!,
+    })),
+  };
 }

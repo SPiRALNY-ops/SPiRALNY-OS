@@ -12,6 +12,10 @@ import type { SourceResult, SyncContext } from "./types";
 /** Re-read a couple of days before the newest stored email; duplicates are skipped by message ID. */
 const OVERLAP_DAYS = 2;
 
+/** OpsLabs' own test entries (our addresses) never count as Spiral NY leads. */
+export const TEST_EMAIL_DOMAINS = ["outreachify.io"];
+const isTestEntry = (email: string | null) => Boolean(email && TEST_EMAIL_DOMAINS.some((d) => email.endsWith(`@${d}`)));
+
 export async function syncForms(ctx: SyncContext): Promise<SourceResult> {
   const { db, config } = ctx;
   const token = await ctx.googleToken!();
@@ -38,12 +42,17 @@ export async function syncForms(ctx: SyncContext): Promise<SourceResult> {
 
   let written = 0;
   let ignored = 0;
+  let tests = 0;
   const days: string[] = [];
   for (const id of ids.filter((i) => !known.has(i))) {
     const message = readMessage(await getMessage(ctx.fetch, token, id));
     const entry = parseSpiralEntry(message.subject, message.text);
     if (!entry) {
       ignored++;
+      continue;
+    }
+    if (isTestEntry(entry.email)) {
+      tests++;
       continue;
     }
     await db.transaction(async (tx) => {
@@ -84,7 +93,9 @@ export async function syncForms(ctx: SyncContext): Promise<SourceResult> {
     days.push(todayIn(config.timezone, message.receivedAt));
   }
 
-  const note = ignored ? ` ${ignored} matching email(s) were not Spiral OS entries and were ignored.` : "";
+  const note =
+    (ignored ? ` ${ignored} matching email(s) were not Spiral OS entries and were ignored.` : "") +
+    (tests ? ` ${tests} OpsLabs test entr${tests === 1 ? "y was" : "ies were"} skipped.` : "");
   if (!(await hasRows(db, "spiral.form_entries"))) {
     return {
       status: "skipped",

@@ -3,51 +3,75 @@ import type { SourceStatus } from "@/lib/analytics/types";
 import { relativeTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { SampleBadge } from "./chart-parts";
+import { InfoTip } from "./info-tip";
 
-/** Says plainly which numbers are real and which are samples waiting on access. */
+/**
+ * Says plainly which numbers are real and which are samples. With everything
+ * waiting it explains at length; once sources are live it shrinks to one line.
+ */
 export function SourcesBanner({ sources }: { sources: SourceStatus[] }) {
-  const waiting = sources.filter((s) => s.origin === "sample").length;
+  const live = sources.filter((s) => s.origin === "real");
+  const latest = live.map((s) => s.lastSuccessAt).filter((d): d is string => Boolean(d)).sort().at(-1);
 
-  return (
-    <section
-      aria-label="Data sources"
-      className={cn(
-        "rounded-xl border bg-card p-4 shadow-xs sm:p-5",
-        waiting > 0 && "border-l-4 border-l-brand",
-      )}
-    >
-      {waiting > 0 ? (
-        <div className="mb-4">
-          <p className="font-bold">
-            {waiting === sources.length ? "These are sample numbers for now" : "Some sections still show sample numbers"}
-          </p>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Each section marked <SampleBadge className="mx-0.5 align-[1px]" /> switches to Spiral NY&apos;s real numbers
-            as soon as its source is connected.
-          </p>
-        </div>
-      ) : (
-        <p className="mb-3 font-bold">All sources connected</p>
-      )}
-      <ul className="grid gap-x-2 gap-y-2.5 sm:grid-cols-2 sm:gap-y-2 lg:grid-cols-3 xl:grid-cols-5">
-        {sources.map((s) => {
-          const real = s.origin === "real";
-          return (
+  if (live.length === 0) {
+    return (
+      <section aria-label="Data sources" className="rounded-xl border border-l-4 border-l-brand bg-card p-4 shadow-xs sm:p-5">
+        <p className="font-bold">These are sample numbers for now</p>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Each section marked <SampleBadge className="mx-0.5 align-[1px]" /> switches to Spiral NY&apos;s real numbers as soon as its
+          source is connected.
+        </p>
+        <ul className="mt-4 grid gap-x-2 gap-y-2.5 sm:grid-cols-2 sm:gap-y-2 lg:grid-cols-3 xl:grid-cols-5">
+          {sources.map((s) => (
             <li key={s.key} className="flex items-start gap-2.5 sm:rounded-lg sm:bg-muted/70 sm:px-3 sm:py-2.5">
-              {real ? (
-                <CircleCheck aria-hidden className="mt-0.5 size-4 shrink-0 text-good" />
-              ) : (
-                <Clock aria-hidden className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
-              )}
+              <Clock aria-hidden className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
               <div className="min-w-0 text-sm">
                 <p className="font-semibold max-sm:inline">{s.label}</p>
                 <span className="text-muted-foreground sm:hidden">: </span>
-                <p className="text-muted-foreground max-sm:inline">
-                  {real
-                    ? `Connected${s.lastSuccessAt ? `, updated ${relativeTime(s.lastSuccessAt)}` : ""}`
-                    : `Waiting for ${s.waitingFor}`}
-                </p>
+                <p className="text-muted-foreground max-sm:inline">Waiting for {s.waitingFor}</p>
               </div>
+            </li>
+          ))}
+        </ul>
+      </section>
+    );
+  }
+
+  return (
+    <section aria-label="Data sources" className="flex flex-wrap items-center gap-x-4 gap-y-2.5 rounded-xl border bg-card px-4 py-3 shadow-xs">
+      <p className="text-sm">
+        <span className="font-semibold">
+          Live data from {live.length} of {sources.length} sources
+        </span>
+        {latest && <span className="text-muted-foreground">, updated {relativeTime(latest)}</span>}
+      </p>
+      <ul className="flex flex-wrap gap-1.5">
+        {sources.map((s) => {
+          const real = s.origin === "real";
+          return (
+            <li
+              key={s.key}
+              className={cn(
+                "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs",
+                real ? "bg-card" : "border-dashed border-brand/60 bg-brand-soft",
+              )}
+            >
+              {real ? (
+                <CircleCheck aria-hidden className="size-3.5 text-good" />
+              ) : (
+                <Clock aria-hidden className="size-3.5 text-muted-foreground" />
+              )}
+              <span className="font-medium">{s.label}</span>
+              {real ? (
+                <span className="sr-only">: live</span>
+              ) : (
+                <>
+                  <span className="text-muted-foreground">sample</span>
+                  <InfoTip label={`${s.label} status`}>
+                    Waiting for {s.waitingFor}. Sections from this source show labelled sample numbers until then.
+                  </InfoTip>
+                </>
+              )}
             </li>
           );
         })}

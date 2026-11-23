@@ -55,6 +55,15 @@ const MESSAGES: Record<string, object> = {
       body: { data: b64(ABANDONED_HTML) },
     },
   },
+  m5: {
+    id: "m5",
+    internalDate: at("2026-11-14T10:00:00Z"),
+    payload: {
+      mimeType: "text/plain",
+      headers: [{ name: "Subject", value: "Spiral OS entry: abandoned" }],
+      body: { data: b64(COMPLETE_TEXT.replace("Type: complete", "Type: abandoned").replace("jane@example.com", "admin@outreachify.io")) },
+    },
+  },
   m3: {
     id: "m3",
     internalDate: at("2026-11-13T10:00:00Z"),
@@ -135,6 +144,20 @@ function fakeApis(world: World): Fetch {
         ],
       });
     }
+    if (url.pathname === "/api/v2/campaigns/analytics/overview") {
+      return json({ emails_sent_count: 410, contacted_count: 380, new_leads_contacted_count: 150, reply_count_unique: 9, total_interested: 2, total_meeting_booked: 0, total_closed: 0, bounced_count: 11, unsubscribed_count: 1 });
+    }
+    if (url.pathname === "/api/v2/campaigns/analytics/steps") {
+      expect(url.searchParams.get("campaign_id")).toBe("camp-1");
+      // As Instantly really sends them: step and variant as text, sometimes the text "null".
+      return json([
+        { step: null, variant: null, sent: 0, unique_replies: 0, unique_opportunities: 0 },
+        { step: "null", variant: null, sent: 0, unique_replies: 0, unique_opportunities: 0 },
+        { step: "0", variant: "0", sent: 250, unique_replies: 3, unique_opportunities: 1 },
+        { step: "1", variant: "0", sent: 100, unique_replies: 4, unique_opportunities: 1 },
+        { step: "1", variant: "1", sent: 60, unique_replies: 2, unique_opportunities: 0 },
+      ]);
+    }
     if (url.pathname === "/api/v2/campaigns/analytics") {
       // Instantly's own totals. Deliberately not the sum of the daily rows (10 replies, 3 opportunities):
       // a lead who replied on two days counts once here, and one opportunity was later removed.
@@ -180,7 +203,7 @@ describe("daily sync", () => {
   beforeEach(async () => {
     db = await openPglite();
     await runMigrations(db, { local: true });
-    world = { gmailIds: ["m1", "m2", "m3"], tokenStatus: 200, calls: [] };
+    world = { gmailIds: ["m1", "m2", "m3", "m5"], tokenStatus: 200, calls: [] };
   });
   afterEach(async () => db.close());
 
@@ -218,7 +241,8 @@ describe("daily sync", () => {
       ["ga4", "success"],
     ]);
 
-    // Form entries: two parsed, the reply ignored; one person each.
+    // Form entries: two parsed, the reply ignored, our own test (admin@outreachify.io) skipped.
+    expect(results[0].message).toMatch(/1 OpsLabs test entry was skipped/);
     const entries = await db.query<{ entry_type: string; email: string; amount_cents: number | null }>(
       "select entry_type, email, amount_cents from spiral.form_entries order by received_at",
     );
@@ -264,8 +288,33 @@ describe("daily sync", () => {
     expect(leadTotals).toEqual({ google: 1, cold: 2, unknown: 2 });
     const brooklyn = view.pages.rows.find((r) => r.path === "/brooklyn-100-commission-brokerage/");
     expect(brooklyn).toMatchObject({ visits: 30, googleClicks: 5, leads: 1, signups: 1 });
+    // Cold email funnel from Instantly's overview; meetings and won hidden while unused.
+    expect(view.coldEmail.funnel.map((f) => [f.key, f.value])).toEqual([["sent", 410], ["replied", 9], ["interested", 2]]);
+    expect(view.coldEmail.health).toEqual({ sent: 410, newContacted: 150, bounced: 11, unsubscribed: 1 });
+    // Each email of the sequence, A/B versions folded into their email; rows Instantly couldn't place are dropped.
+    expect(view.coldEmail.steps).toEqual([
+      { step: 0, variant: 0, sent: 250, replies: 3, opportunities: 1 },
+      { step: 1, variant: 0, sent: 160, replies: 6, opportunities: 1 },
+    ]);
+
+    // Search mix and page groups come from the stored Search Console rows.
+    const groups = Object.fromEntries(view.searches.groups.map((g) => [g.key, g.clicks]));
+    expect(groups).toEqual({ brand: 0, recruiting: 6, other: 0 }); // "park my real estate license ny" is a licence search
+    expect(view.searches.totals).toMatchObject({ clicks: 7, impressions: 155 });
+    expect(view.pages.groups.find((g) => g.key === "recruiting")?.clicks).toBe(8); // both fixture pages are recruiting pages
+
+    // Plans: Jane joined on 100% (form) and the sheet; Sam on Park Your License.
+    const joined = Object.fromEntries(view.plans.joined.map((r) => [r.key, r.value]));
+    expect(joined).toMatchObject({ "100%": 1, "Park Your License": 1 });
+    // Lead status from the sheet: Pat and Lee are "Interested".
+    expect(view.leadStatus.rows.find((r) => r.key === "interested")?.value).toBe(2);
+
+    // Data only goes back to early November here, so nothing is compared with the period before.
+    expect(view.kpis.every((k) => k.previous === null)).toBe(true);
+    expect(view.searches.previous).toBeNull();
+
     expect(view.coldEmail.rows).toEqual([
-      expect.objectContaining({ id: "camp-1", sent: 410, replies: 9, interested: 2, leads: 1, signups: 1 }),
+      expect.objectContaining({ id: "camp-1", sent: 410, replies: 9, interested: 2, contacted: 0, bounced: 0, leads: 1, signups: 1 }),
     ]);
   });
 

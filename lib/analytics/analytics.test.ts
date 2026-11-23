@@ -53,7 +53,7 @@ describe("sample data", () => {
       const kpis = sampleKpis(r);
       for (const k of kpis) {
         expect(k.trend).toHaveLength(r.buckets.length);
-        expect(k.trend.reduce((a, b) => a + b, 0)).toBe(k.value);
+        expect(k.trend.reduce<number>((a, b) => a + (b ?? 0), 0)).toBe(k.value);
       }
       const v = (key: string) => kpis.find((k) => k.key === key)!.value;
       // Same definition as the real numbers: started a form but never completed one.
@@ -113,12 +113,17 @@ describe("buildAnalytics", () => {
     // Nov 11 is not "unfinished" on either day, so that line never dips below zero.
     const at = (key: string, day: string) => kpi(key).trend[view.range.buckets.findIndex((b) => b.key === day)];
     for (const key of ["leads", "signups", "unfinished", "googleClicks"]) {
-      expect(kpi(key).trend.reduce((a, b) => a + b, 0)).toBe(kpi(key).value);
-      expect(kpi(key).trend.every((n) => n >= 0)).toBe(true);
+      expect(kpi(key).trend.reduce<number>((a, b) => a + (b ?? 0), 0)).toBe(kpi(key).value);
+      expect(kpi(key).trend.every((n) => n === null || n >= 0)).toBe(true);
     }
     expect([at("leads", "2026-11-10"), at("leads", "2026-11-12")]).toEqual([1, 1]);
     expect([at("unfinished", "2026-11-10"), at("unfinished", "2026-11-12")]).toEqual([0, 1]);
     expect(at("googleClicks", "2026-11-10")).toBe(12);
+    // Days before Search Console's first recorded day (Nov 10 here) and after its last (Nov 11) are gaps, not zeros.
+    expect(at("googleClicks", "2026-11-09")).toBeNull();
+    expect(at("googleClicks", "2026-11-12")).toBeNull();
+    // The daily search chart stops at the last day Search Console reported.
+    expect(view.searches.daily.at(-1)?.day).toBe("2026-11-11");
     expect(kpi("replies").origin).toBe("sample");
 
     // Each person counted once, in the bucket of their first entry, under their source.
@@ -133,7 +138,7 @@ describe("buildAnalytics", () => {
     expect(page).toMatchObject({ googleClicks: 12, leads: 1, signups: 1, visits: null });
     expect(page.topSearches[0]).toMatchObject({ query: "100 commission brokerage ny", clicks: 9 });
 
-    expect(view.searches.daily).toHaveLength(28);
+    expect(view.searches.daily[0].day).toBe(view.range.start);
     expect(view.searches.rows[0]).toMatchObject({ query: "100 commission brokerage ny", clicks: 9 });
     expect(view.coldEmail.origin).toBe("sample");
   });

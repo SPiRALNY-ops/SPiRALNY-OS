@@ -105,9 +105,54 @@ export type InstantlyCampaignTotals = {
   campaign_id: string;
   campaign_name?: string;
   emails_sent_count?: number;
+  contacted_count?: number;
   reply_count_unique?: number;
+  bounced_count?: number;
+  unsubscribed_count?: number;
   total_opportunities?: number;
 };
+
+export type InstantlyOverview = {
+  emails_sent_count?: number;
+  contacted_count?: number;
+  new_leads_contacted_count?: number;
+  reply_count_unique?: number;
+  bounced_count?: number;
+  unsubscribed_count?: number;
+  total_interested?: number;
+  total_meeting_booked?: number;
+  total_meeting_completed?: number;
+  total_closed?: number;
+};
+
+/** All campaigns together for one date range (GET /campaigns/analytics/overview, no id = all). */
+export async function campaignOverview(fetchFn: Fetch, apiKey: string, start: string, end: string): Promise<InstantlyOverview> {
+  const params = new URLSearchParams({ start_date: start, end_date: end });
+  const res = await requestJson<InstantlyOverview | InstantlyOverview[]>(fetchFn, `${BASE}/campaigns/analytics/overview?${params}`, {
+    service: "Instantly",
+    headers: auth(apiKey),
+  });
+  return (Array.isArray(res) ? res[0] : res) ?? {};
+}
+
+export type InstantlyStep = {
+  // Sent as text in practice ("0", "1", sometimes "null"), though the spec says number. 0 = the first email.
+  step: number | string | null;
+  variant: number | string | null; // 0 = A
+  sent?: number;
+  unique_replies?: number;
+  unique_opportunities?: number;
+};
+
+/** Per email of one campaign's sequence for a date range. */
+export async function campaignSteps(fetchFn: Fetch, apiKey: string, campaignId: string, start: string, end: string): Promise<InstantlyStep[]> {
+  const params = new URLSearchParams({ campaign_id: campaignId, start_date: start, end_date: end, include_opportunities_count: "true" });
+  const res = await requestJson<InstantlyStep[]>(fetchFn, `${BASE}/campaigns/analytics/steps?${params}`, {
+    service: "Instantly",
+    headers: auth(apiKey),
+  });
+  return Array.isArray(res) ? res : [];
+}
 
 /** Instantly's own totals per campaign for one date range (UTC days, inclusive), as its screens show them. */
 export async function campaignTotals(fetchFn: Fetch, apiKey: string, start: string, end: string): Promise<InstantlyCampaignTotals[]> {

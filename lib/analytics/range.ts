@@ -80,7 +80,7 @@ export function makeBuckets(start: string, end: string, size: BucketSize): Bucke
     }
     const bucketEnd = addDays(next, -1) > end ? end : addDays(next, -1);
     const label =
-      size === "month" ? `${MONTHS[Number(key.slice(5, 7)) - 1]} ${key.slice(2, 4)}` : shortDate(key);
+      size === "month" ? `${MONTHS[Number(key.slice(5, 7)) - 1]} ’${key.slice(2, 4)}` : shortDate(key);
     buckets.push({ key, start: key, end: bucketEnd, label });
     cursor = next;
   }

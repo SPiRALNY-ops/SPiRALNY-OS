@@ -10,6 +10,8 @@ import {
   INTEREST_STATUS,
   LEAD_STATUS,
   campaignDaily,
+  campaignOverview,
+  campaignSteps,
   campaignTotals,
   findLeadsByEmail,
   listCampaigns,
@@ -88,9 +90,11 @@ export async function syncInstantly(ctx: SyncContext): Promise<SourceResult> {
 
   // 3. Instantly's own totals for every range the Analytics tab offers, and the period before each.
   const periods = new Map<string, [string, string]>();
+  const currentPeriods = new Map<string, [string, string]>();
   for (const key of RANGE_KEYS) {
     const r = resolveRange(key, today);
     periods.set(`${r.start}/${r.end}`, [r.start, r.end]);
+    currentPeriods.set(`${r.start}/${r.end}`, [r.start, r.end]);
     periods.set(`${r.previousStart}/${r.previousEnd}`, [r.previousStart, r.previousEnd]);
   }
   const known = new Set(campaigns.map((c) => c.id));
@@ -105,6 +109,9 @@ export async function syncInstantly(ctx: SyncContext): Promise<SourceResult> {
         sent: t.emails_sent_count ?? 0,
         replies: t.reply_count_unique ?? 0,
         interested: t.total_opportunities ?? 0,
+        contacted: t.contacted_count ?? 0,
+        bounced: t.bounced_count ?? 0,
+        unsubscribed: t.unsubscribed_count ?? 0,
       });
     }
   }
@@ -113,8 +120,86 @@ export async function syncInstantly(ctx: SyncContext): Promise<SourceResult> {
     await insertRows(
       tx,
       "spiral.instantly_range_totals",
-      [["range_start", "date"], ["range_end", "date"], ["campaign_id", "text"], ["sent", "integer"], ["replies", "integer"], ["interested", "integer"]],
+      [
+        ["range_start", "date"],
+        ["range_end", "date"],
+        ["campaign_id", "text"],
+        ["sent", "integer"],
+        ["replies", "integer"],
+        ["interested", "integer"],
+        ["contacted", "integer"],
+        ["bounced", "integer"],
+        ["unsubscribed", "integer"],
+      ],
       totals,
+      "on conflict do nothing",
+    );
+  });
+
+  // 3b. The funnel (all campaigns) for every period, and each email of the sequences for the current periods.
+  // Steps are added up by position across campaigns (Email 1, Email 2…). A/B versions are folded into
+  // their email: "version B" of one campaign has nothing to do with "version B" of another.
+  const overviews: Record<string, unknown>[] = [];
+  for (const [rangeStart, rangeEnd] of periods.values()) {
+    const o = await campaignOverview(ctx.fetch, apiKey, rangeStart, rangeEnd);
+    overviews.push({
+      range_start: rangeStart,
+      range_end: rangeEnd,
+      sent: o.emails_sent_count ?? 0,
+      contacted: o.contacted_count ?? 0,
+      new_contacted: o.new_leads_contacted_count ?? 0,
+      replied: o.reply_count_unique ?? 0,
+      interested: o.total_interested ?? 0,
+      meetings_booked: o.total_meeting_booked ?? 0,
+      meetings_completed: o.total_meeting_completed ?? 0,
+      won: o.total_closed ?? 0,
+      bounced: o.bounced_count ?? 0,
+      unsubscribed: o.unsubscribed_count ?? 0,
+    });
+  }
+  const steps = new Map<string, { range_start: string; range_end: string; step: number; variant: number; sent: number; replies: number; opportunities: number }>();
+  for (const [rangeStart, rangeEnd] of currentPeriods.values()) {
+    for (const c of campaigns.filter((c) => c.status !== 0)) {
+      for (const s of await campaignSteps(ctx.fetch, apiKey, c.id, rangeStart, rangeEnd)) {
+        const step = Number.parseInt(String(s.step), 10);
+        if (!Number.isFinite(step)) continue; // events Instantly couldn't place in a step
+        const k = `${rangeStart}/${rangeEnd}/${step}`;
+        const row = steps.get(k) ?? { range_start: rangeStart, range_end: rangeEnd, step, variant: 0, sent: 0, replies: 0, opportunities: 0 };
+        row.sent += s.sent ?? 0;
+        row.replies += s.unique_replies ?? 0;
+        row.opportunities += s.unique_opportunities ?? 0;
+        steps.set(k, row);
+      }
+    }
+  }
+  await db.transaction(async (tx) => {
+    await tx.query("delete from spiral.instantly_range_overview");
+    await tx.query("delete from spiral.instantly_range_steps");
+    await insertRows(
+      tx,
+      "spiral.instantly_range_overview",
+      [
+        ["range_start", "date"],
+        ["range_end", "date"],
+        ["sent", "integer"],
+        ["contacted", "integer"],
+        ["new_contacted", "integer"],
+        ["replied", "integer"],
+        ["interested", "integer"],
+        ["meetings_booked", "integer"],
+        ["meetings_completed", "integer"],
+        ["won", "integer"],
+        ["bounced", "integer"],
+        ["unsubscribed", "integer"],
+      ],
+      overviews,
+      "on conflict do nothing",
+    );
+    await insertRows(
+      tx,
+      "spiral.instantly_range_steps",
+      [["range_start", "date"], ["range_end", "date"], ["step", "integer"], ["variant", "integer"], ["sent", "integer"], ["replies", "integer"], ["opportunities", "integer"]],
+      [...steps.values()],
       "on conflict do nothing",
     );
   });

@@ -56,6 +56,6 @@ function copyAuth(from: NextResponse, to: NextResponse) {
 }
 
 export const config = {
-  // Skip static files, images, health checks and the cron endpoint (it has its own secret).
-  matcher: ["/((?!_next/static|_next/image|brand/|icon.png|apple-icon.png|api/health|api/cron).*)"],
+  // Skip static files, images, robots.txt, health checks and the cron endpoint (it has its own secret).
+  matcher: ["/((?!_next/static|_next/image|brand/|icon.png|apple-icon.png|robots.txt|api/health|api/cron).*)"],
 };

@@ -152,7 +152,8 @@ export function FilterChips<K extends string>({
             )}
           >
             {o.label}
-            {o.count !== undefined && <span className={cn("ml-1.5 tabular", selected ? "opacity-80" : "opacity-70")}>{o.count}</span>}
+            {/* Unselected counts keep the label's full muted colour: any fade drops them under 4.5:1. */}
+            {o.count !== undefined && <span className={cn("ml-1.5 tabular", selected && "opacity-80")}>{o.count}</span>}
           </button>
         );
       })}

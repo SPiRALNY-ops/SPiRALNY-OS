@@ -50,7 +50,9 @@ export function InfoTip({ label, children }: { label: string; children: React.Re
             if (byHover.current && open) e.preventDefault();
             byHover.current = false;
           }}
-          className="relative ml-1 inline-flex size-4 shrink-0 items-center justify-center rounded-full align-[-3px] text-muted-foreground/80 transition-colors before:absolute before:-inset-2.5 before:content-[''] hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring data-[state=open]:text-foreground"
+          // A 24px target (WCAG 2.5.8) drawn like the old 16px one: the 4px padding is taken back by
+          // negative margins, so the icon and the text around it don't move. The ::before widens taps to 36px.
+          className="relative -my-1 -mr-1 inline-flex size-6 shrink-0 items-center justify-center rounded-full p-1 align-[-3px] text-muted-foreground/80 transition-colors before:absolute before:-inset-1.5 before:content-[''] hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring data-[state=open]:text-foreground"
         >
           <CircleHelp aria-hidden className="size-3.5" />
         </button>

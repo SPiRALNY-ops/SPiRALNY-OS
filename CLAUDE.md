@@ -35,6 +35,9 @@ See everything → Step 2 Onboarding → Step 3 AI calls → Step 4 Georgia and 
   popover (`InfoTip`: tap on phones, hover with a mouse); `TipLabel` keeps it on the label's last line.
   Sideways-scrolling rows (chips, chapter links) fade at the hidden edge (`useEdgeFade`). Check 360, 390, 768,
   1024, 1280 and 1440 wide for sideways overflow before shipping.
+- Accessibility (Lighthouse/axe 100 in light and dark): text ≥4.5:1, so never fade muted text with `opacity`;
+  tap targets ≥24px (`InfoTip` is 24px drawn as 16px). The only accepted Lighthouse failure is SEO
+  "blocked from indexing" (every page is `noindex`; `app/robots.ts` keeps pages crawlable so crawlers see it).
 - Every section says its finding in one plain sentence (computed), explains terms behind a "?" (`InfoTip`),
   and states its source and caveats in the footer. One-hue ranked bars use `--chart-slate` (site slate).
 - Honesty rules: no comparison when a source has no data for the whole previous period ("No earlier data");

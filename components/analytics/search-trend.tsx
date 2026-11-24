@@ -1,14 +1,14 @@
 "use client";
 
-import { Area, AreaChart, CartesianGrid, Tooltip, XAxis, YAxis } from "recharts";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { shortDate } from "@/lib/analytics/range";
 import type { Bucket, BucketSize, DailySearchPoint } from "@/lib/analytics/types";
 import { formatCount, formatFull } from "@/lib/format";
-import { ChartCard, TooltipBox } from "./chart-parts";
-import { SINGLE_SERIES_COLOR } from "./series";
+import { ChartCard } from "./chart-parts";
+import { TrendPlot } from "./lazy-plots";
+import type { TrendPoint } from "./plots";
 
-type Point = DailySearchPoint & { label: string; title: string };
+type Point = TrendPoint;
 
 /** One series per chart (never two y-axes): clicks and times shown sit side by side. */
 function MiniTrend({ data, field, label }: { data: Point[]; field: "clicks" | "impressions"; label: string }) {
@@ -20,50 +20,7 @@ function MiniTrend({ data, field, label }: { data: Point[]; field: "clicks" | "i
         <span className="text-sm text-muted-foreground">{label}</span>
         <span className="text-lg font-semibold">{formatCount(total)}</span>
       </figcaption>
-      <AreaChart
-        responsive
-        data={data}
-        style={{ width: "100%", height: 180 }}
-        margin={{ top: 8, right: 8, bottom: 0, left: 0 }}
-        accessibilityLayer
-      >
-        <CartesianGrid vertical={false} stroke="var(--chart-grid)" />
-        <XAxis
-          dataKey="label"
-          tickLine={false}
-          axisLine={{ stroke: "var(--chart-axis)" }}
-          tick={{ fill: "var(--chart-muted)", fontSize: 11 }}
-          interval="preserveStartEnd"
-          minTickGap={24}
-        />
-        <YAxis
-          allowDecimals={false}
-          tickLine={false}
-          axisLine={false}
-          tick={{ fill: "var(--chart-muted)", fontSize: 11 }}
-          tickFormatter={(v: number) => formatCount(v)}
-          width={48}
-        />
-        <Tooltip
-          cursor={{ stroke: "var(--chart-axis)", strokeWidth: 1 }}
-          content={({ active, payload }) => {
-            const p = payload?.[0]?.payload as Point | undefined;
-            if (!active || !p) return null;
-            return <TooltipBox title={p.title} rows={[{ label, value: p[field], color: SINGLE_SERIES_COLOR }]} />;
-          }}
-        />
-        <Area
-          type="monotone"
-          dataKey={field}
-          stroke={SINGLE_SERIES_COLOR}
-          strokeWidth={2}
-          fill={SINGLE_SERIES_COLOR}
-          fillOpacity={0.1}
-          isAnimationActive={false}
-          dot={false}
-          activeDot={{ r: 4, fill: SINGLE_SERIES_COLOR, stroke: "var(--card)", strokeWidth: 2 }}
-        />
-      </AreaChart>
+      <TrendPlot data={data} field={field} label={label} />
       {last && (
         <p className="mt-1 text-right text-xs text-muted-foreground">
           {last.title}: <span className="tabular font-medium text-foreground">{formatFull(last[field])}</span>

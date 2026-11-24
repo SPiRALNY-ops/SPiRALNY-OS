@@ -16,9 +16,9 @@ export default function SignInPage() {
           <Image
             src="/brand/spiralny-logo@2x.png"
             alt="SPiRALNY Real Estate"
-            width={2048}
-            height={698}
-            priority
+            width={200}
+            height={68}
+            loading="eager"
             className="h-auto w-[200px]"
           />
           <p className="mt-3 text-sm font-semibold text-sidebar-muted">Spiral OS</p>

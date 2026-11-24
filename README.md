@@ -28,15 +28,43 @@ npm run build
 
 ## Deploy (Railway + Supabase)
 
-1. Supabase: copy the connection string and API keys into Railway (see `.env.example`).
+One Railway service, `web`, in Railway's Virginia region (`iad`), next to the Supabase project
+(AWS `us-east-1`), so a database read takes about a millisecond. Deploy from this folder with
+`railway up --service web` (the Railway GitHub app isn't installed on the SPiRALNY-ops organisation).
+
+1. Supabase: the **Session pooler** string (Connect → Session pooler) becomes `DATABASE_URL` on Railway;
+   the project URL and publishable key become `NEXT_PUBLIC_SUPABASE_URL` and
+   `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` (see `.env.example`). Connections to Supabase verify its
+   certificate against Supabase's root CA (`lib/db/supabase-ca.ts`).
 2. Apply the database: `DATABASE_URL=… npm run db:migrate`.
 3. Create users in Supabase (Authentication → Users → Add user), then give each a role:
    `DATABASE_URL=… npm run grant -- marcel@spiralny.com owner "Marcel Bellucci"`.
-4. Railway builds from `Dockerfile` (tests run first) and checks `/api/health`.
-5. Daily sync: add a second Railway service from the same repo, set its **Cron Schedule** to
-   `0 11 * * *` (Railway schedules are UTC; this is 6 am in New York in winter, 7 am in summer) and its
-   start command to `node scripts/cron-sync.mjs`. It needs `APP_URL` and `CRON_SECRET`, and exits
-   once the web service has accepted the request.
+4. Railway builds from `Dockerfile` (tests run first). The service's settings live on Railway itself,
+   because Railway no longer reads `railway.json` (deprecated; ignored for new services): health check
+   `/api/health` (120 s timeout), one replica in `iad` (Ashburn, Virginia), restart on failure (5 tries),
+   no sleeping. The public domain (https://spiralny-os.up.railway.app) targets port 8080, the `PORT` Railway
+   gives the container. Keep it at one replica: the cache, the daily schedule and the one-sync-at-a-time lock
+   live in that process. (Railway's replacement, `.railway/railway.ts`, needs the `railway` npm package;
+   `railway config pull --variables=unmanaged` writes it from the live settings if you adopt it.)
+5. The daily sync is built in, so there's no cron service. Every 10 minutes the server asks itself
+   (`POST /api/cron/sync?when=due`) whether the morning sync is due: after 6 am New York time, with no
+   sync completed since. A restart or deploy therefore never skips a day. `POST /api/cron/sync` with
+   `Authorization: Bearer <CRON_SECRET>` starts one at any time.
+
+## Speed
+
+- **Cached views.** The Analytics view is kept in the server's memory (`"use cache"`), keyed by date
+  range, the New York day, and a data version (the newest time in `spiral.sync_runs`). The rendered
+  dashboard is cached with the same key. New data or a new day changes the key, so a cached page is
+  never out of date.
+- **Warm before anyone asks.** After every sync and when the server starts, it builds all four ranges
+  (`POST /api/cron/warm`), so visitors don't wait on the database.
+- **Parallel reads.** A fresh view runs its ~35 queries in two parallel rounds. Only each page's top five
+  searches leave the database, and every search in the period is read once for both the searches
+  table and the search groups.
+- **Light first screen.** Recharts (about 100 KB compressed) loads after the first screen is interactive
+  (`components/analytics/lazy-plots.tsx`); its plots keep their height while loading. Logos are served at
+  the size they're shown.
 
 ## Connections and the daily sync
 

@@ -5,6 +5,7 @@ import { getDb } from "@/lib/db";
 import { env } from "@/lib/env";
 import { getGoogleConnection, type GoogleConnection } from "@/lib/sources/google-account";
 import { runSync, sourceReadiness, type Readiness } from "./index";
+import { callSelf } from "./self";
 import { SYNC_ORDER, type RunSummary, type SyncConfig, type SyncSource } from "./types";
 
 export function syncConfigFromEnv(): SyncConfig {
@@ -41,6 +42,8 @@ export function startSync(only?: SyncSource[]): "started" | "already-running" {
     for (const r of results) {
       if (r.status === "error") console.error(`[sync] ${r.source}: ${r.message}`);
     }
+    // Rebuild every Analytics range now, so the first visit after new data doesn't wait for it.
+    await callSelf("/api/cron/warm").catch((error) => console.error("[sync] warm-up failed", error));
     return results;
   })().finally(() => {
     holder.__spiralSync = undefined;
@@ -48,6 +51,28 @@ export function startSync(only?: SyncSource[]): "started" | "already-running" {
   holder.__spiralSync = run;
   after(() => run.catch((error) => console.error("[sync] failed", error)));
   return "started";
+}
+
+/** The morning sync runs once a day, from this hour in the app's time zone (New York). */
+export const DAILY_SYNC_HOUR = 6;
+
+/**
+ * True once it's past the morning hour in New York and no sync has completed a step since then
+ * today. Steps left "running" by a restart don't count, so an interrupted morning sync runs again.
+ */
+export async function syncDue(): Promise<boolean> {
+  if (isSyncRunning()) return false;
+  const db = await getDb();
+  const [row] = await db.query<{ due: boolean }>(
+    `with today as (
+       select (date_trunc('day', now() at time zone $1) + make_interval(hours => $2)) at time zone $1 as from_time
+     )
+     select now() >= today.from_time
+            and coalesce((select max(started_at) from spiral.sync_runs where status <> 'running'), 'epoch') < today.from_time as due
+       from today`,
+    [env().TIMEZONE, DAILY_SYNC_HOUR],
+  );
+  return Boolean(row?.due);
 }
 
 export type LastRun = {

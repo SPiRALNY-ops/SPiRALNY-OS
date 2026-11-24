@@ -55,13 +55,8 @@ export async function searchTotals(db: Db, p: Period): Promise<SearchStats> {
   return { clicks, impressions, ctr: impressions ? clicks / impressions : 0, position: r?.position ?? 0 };
 }
 
-/** Clicks and impressions per search group (searches Google shows by name only). */
-export async function searchGroups(db: Db, p: Period): Promise<GroupRow<SearchGroupKey>[]> {
-  const rows = await db.query<{ query: string; clicks: number; impressions: number }>(
-    `select query, sum(clicks)::int as clicks, sum(impressions)::int as impressions
-       from spiral.gsc_daily where day between $1::date and $2::date group by query`,
-    [p.start, p.end],
-  );
+/** Clicks and impressions per search group (searches Google shows by name only), from every search in the period. */
+export function searchGroups(rows: { query: string; clicks: number; impressions: number }[]): GroupRow<SearchGroupKey>[] {
   const out = SEARCH_GROUPS.map((g) => ({ ...g, clicks: 0, impressions: 0, items: 0 }));
   for (const r of rows) {
     const g = out.find((x) => x.key === searchGroup(r.query))!;

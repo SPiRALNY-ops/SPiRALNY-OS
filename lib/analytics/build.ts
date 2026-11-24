@@ -39,12 +39,19 @@ export async function buildAnalytics(
   const current = { start: range.start, end: range.end };
   const previous = { start: range.previousStart, end: range.previousEnd };
 
-  const synced = await q.lastSuccessfulSyncs(db);
+  // Two rounds of reads, each run in parallel: first which sources are live and the days they
+  // cover, then every section at once. Sections for sources that aren't live never touch the database.
+  const [synced, skipped, coverage, coverageEnd] = await Promise.all([
+    q.lastSuccessfulSyncs(db),
+    q.skippedSources(db),
+    d.coverage(db, timezone),
+    d.coverageEnd(db),
+  ]);
   const real = (s: SourceKey) => Boolean(synced[s]);
   const origin = (s: SourceKey): Origin => (real(s) ? "real" : "sample");
+  const when = <T>(live: boolean, read: () => Promise<T>): Promise<T | null> => (live ? read() : Promise.resolve(null));
 
   // A source that is connected but has nothing yet is waiting for its first data, not for access.
-  const skipped = await q.skippedSources(db);
   const sources: SourceStatus[] = (Object.keys(SOURCE_INFO) as SourceKey[]).map((key) => ({
     key,
     ...SOURCE_INFO[key],
@@ -56,16 +63,69 @@ export async function buildAnalytics(
   const formsReal = real("forms");
   // Leads and sign-ups come from the forms and the lead sheet; either one makes them real.
   const leadsReal = formsReal || real("lead_sheet");
-  const leadsBySource = leadsReal
-    ? { origin: "real" as const, buckets: await q.bySource(db, range, timezone, "leads") }
+  const gscReal = real("gsc");
+  const ga4Real = real("ga4");
+  const instantlyReal = real("instantly");
+  /** A comparison is only fair if the source has data for the whole period before. */
+  const comparable = (key: keyof typeof coverage) => Boolean(coverage[key] && coverage[key]! <= previous.start);
+
+  const [
+    leadBuckets,
+    signupBuckets,
+    leadsNow,
+    leadsBefore,
+    formsNow,
+    formsBefore,
+    unfinished,
+    ga4Kpi,
+    gscKpi,
+    instantlyKpi,
+    searchDaily,
+    queryTotals,
+    searchTotals,
+    searchTotalsBefore,
+    pageRows,
+    pageGroups,
+    planRows,
+    leadStatusRows,
+    websiteData,
+    funnel,
+    campaignRows,
+    steps,
+  ] = await Promise.all([
+    when(leadsReal, () => q.bySource(db, range, timezone, "leads")),
+    when(leadsReal, () => q.bySource(db, range, timezone, "signups")),
+    when(leadsReal, () => q.leadTotals(db, current, timezone)),
+    when(leadsReal, () => q.leadTotals(db, previous, timezone)),
+    when(formsReal, () => q.formTotals(db, current, timezone)),
+    when(formsReal, () => q.formTotals(db, previous, timezone)),
+    when(formsReal, () => q.unfinishedDaily(db, current, timezone)),
+    when(ga4Real, () => Promise.all([q.ga4Visits(db, current), q.ga4Visits(db, previous), q.ga4VisitsDaily(db, current)])),
+    when(gscReal, () => Promise.all([q.gscClicks(db, current), q.gscClicks(db, previous)])),
+    when(instantlyReal, () =>
+      Promise.all([q.instantlyReplies(db, current), q.instantlyReplies(db, previous), q.instantlyRepliesDaily(db, current)]),
+    ),
+    when(gscReal, () => q.searchDaily(db, current)),
+    when(gscReal, () => q.searchQueryTotals(db, current)),
+    when(gscReal, () => d.searchTotals(db, current)),
+    when(gscReal && comparable("gsc"), () => d.searchTotals(db, previous)),
+    when(gscReal, () => q.pageRows(db, current, timezone, { withVisits: ga4Real, withForms: formsReal })),
+    when(gscReal, () => d.pageGroups(db, current)),
+    when(leadsReal, () => d.plans(db, current, timezone)),
+    when(real("lead_sheet"), () => d.leadStatus(db, current)),
+    when(ga4Real, () => d.website(db, current)),
+    when(instantlyReal, () => d.coldFunnel(db, current)),
+    when(instantlyReal, () => q.campaignRows(db, current, timezone, leadsReal)),
+    when(instantlyReal, () => d.emailSteps(db, current)),
+  ]);
+
+  const leadsBySource = leadBuckets
+    ? { origin: "real" as const, buckets: leadBuckets }
     : { origin: "sample" as const, buckets: sample.sampleBySource(range, "leads") };
-  const signupsBySource = leadsReal
-    ? { origin: "real" as const, buckets: await q.bySource(db, range, timezone, "signups") }
+  const signupsBySource = signupBuckets
+    ? { origin: "real" as const, buckets: signupBuckets }
     : { origin: "sample" as const, buckets: sample.sampleBySource(range, "signups") };
 
-  const searchDaily = real("gsc") ? await q.searchDaily(db, current) : null;
-  const coverage = await d.coverage(db, timezone);
-  const coverageEnd = await d.coverageEnd(db);
   /** Buckets wholly before a source's first day or after its last are gaps, not zeros. */
   const withGaps = (trend: number[], key: keyof typeof coverage): (number | null)[] =>
     trend.map((v, i) => {
@@ -74,19 +134,11 @@ export async function buildAnalytics(
       const last = coverageEnd[key];
       return (first && b.end < first) || (last && b.start > last) ? null : v;
     });
-  /** A comparison is only fair if the source has data for the whole period before. */
-  const comparable = (key: keyof typeof coverage) => Boolean(coverage[key] && coverage[key]! <= previous.start);
 
   // KPIs: each tile follows its own source, trend line included.
   const sampleKpis = new Map(sample.sampleKpis(range).map((k) => [k.key, k]));
   const bucketTotals = (buckets: SourceBucket[]) => buckets.map((b) => LEAD_SOURCES.reduce((n, k) => n + b[k], 0));
   const kpis: Kpi[] = [];
-  const [leadsNow, leadsBefore] = leadsReal
-    ? await Promise.all([q.leadTotals(db, current, timezone), q.leadTotals(db, previous, timezone)])
-    : [null, null];
-  const [formsNow, formsBefore] = formsReal
-    ? await Promise.all([q.formTotals(db, current, timezone), q.formTotals(db, previous, timezone)])
-    : [null, null];
   for (const meta of sample.KPI_META) {
     const isLeadCount = meta.key === "leads" || meta.key === "signups";
     if (isLeadCount ? !leadsReal : !real(meta.source)) {
@@ -104,72 +156,65 @@ export async function buildAnalytics(
     } else if (meta.key === "unfinished" && formsNow && formsBefore) {
       value = formsNow.unfinished;
       before = formsBefore.unfinished;
-      trend = sumIntoBuckets(range, await q.unfinishedDaily(db, current, timezone));
-    } else if (meta.source === "ga4") {
-      [value, before] = await Promise.all([q.ga4Visits(db, current), q.ga4Visits(db, previous)]);
-      trend = sumIntoBuckets(range, await q.ga4VisitsDaily(db, current));
-    } else if (meta.source === "gsc") {
-      [value, before] = await Promise.all([q.gscClicks(db, current), q.gscClicks(db, previous)]);
+      trend = sumIntoBuckets(range, unfinished ?? []);
+    } else if (meta.source === "ga4" && ga4Kpi) {
+      [value, before] = ga4Kpi;
+      trend = sumIntoBuckets(range, ga4Kpi[2]);
+    } else if (meta.source === "gsc" && gscKpi) {
+      [value, before] = gscKpi;
       trend = sumIntoBuckets(range, (searchDaily ?? []).map((d) => [d.day, d.clicks] as [string, number]));
-    } else if (meta.source === "instantly") {
-      [value, before] = await Promise.all([q.instantlyReplies(db, current), q.instantlyReplies(db, previous)]);
-      trend = sumIntoBuckets(range, await q.instantlyRepliesDaily(db, current));
+    } else if (meta.source === "instantly" && instantlyKpi) {
+      [value, before] = instantlyKpi;
+      trend = sumIntoBuckets(range, instantlyKpi[2]);
     }
     const coverageKey = isLeadCount ? "leads" : meta.source;
     kpis.push({ ...meta, value, previous: comparable(coverageKey) ? before : null, trend: withGaps(trend, coverageKey), origin: "real" });
   }
 
-  const plans = leadsReal
-    ? { origin: "real" as const, ...(await d.plans(db, current, timezone)) }
+  const plans = planRows
+    ? { origin: "real" as const, ...planRows }
     : { origin: "sample" as const, ...sample.samplePlans(range) };
 
-  const leadStatus = real("lead_sheet")
-    ? { origin: "real" as const, rows: await d.leadStatus(db, current) }
+  const leadStatus = leadStatusRows
+    ? { origin: "real" as const, rows: leadStatusRows }
     : { origin: "sample" as const, rows: sample.sampleLeadStatus(range) };
 
-  const gscReal = real("gsc");
-  const pages = gscReal
-    ? {
-        origin: "real" as const,
-        rows: await q.pageRows(db, current, timezone, { withVisits: real("ga4"), withForms: formsReal }),
-        groups: await d.pageGroups(db, current),
-      }
-    : { origin: "sample" as const, rows: sample.samplePages(range), groups: sample.samplePageGroups(range) };
+  const pages =
+    pageRows && pageGroups
+      ? { origin: "real" as const, rows: pageRows, groups: pageGroups }
+      : { origin: "sample" as const, rows: sample.samplePages(range), groups: sample.samplePageGroups(range) };
 
-  const searches = gscReal
-    ? {
-        origin: "real" as const,
-        daily: searchDaily ?? [],
-        rows: await q.topSearches(db, current),
-        totals: await d.searchTotals(db, current),
-        previous: comparable("gsc") ? await d.searchTotals(db, previous) : null,
-        groups: await d.searchGroups(db, current),
-      }
-    : {
-        origin: "sample" as const,
-        daily: sample.sampleSearchDaily(range),
-        rows: sample.sampleSearches(range),
-        ...sample.sampleSearchTotals(range),
-        groups: sample.sampleSearchGroups(range),
-      };
+  const searches =
+    gscReal && searchTotals && queryTotals
+      ? {
+          origin: "real" as const,
+          daily: searchDaily ?? [],
+          rows: q.topSearches(queryTotals),
+          totals: searchTotals,
+          previous: searchTotalsBefore,
+          groups: d.searchGroups(queryTotals),
+        }
+      : {
+          origin: "sample" as const,
+          daily: sample.sampleSearchDaily(range),
+          rows: sample.sampleSearches(range),
+          ...sample.sampleSearchTotals(range),
+          groups: sample.sampleSearchGroups(range),
+        };
 
-  const website = real("ga4")
-    ? { origin: "real" as const, ...(await d.website(db, current)) }
+  const website = websiteData
+    ? { origin: "real" as const, ...websiteData }
     : { origin: "sample" as const, ...sample.sampleWebsite(range) };
 
-  let coldEmail: AnalyticsView["coldEmail"];
-  if (real("instantly")) {
-    const funnel = await d.coldFunnel(db, current);
-    coldEmail = {
-      origin: "real",
-      rows: await q.campaignRows(db, current, timezone, leadsReal),
-      funnel: funnel?.funnel ?? [],
-      health: funnel?.health ?? null,
-      steps: await d.emailSteps(db, current),
-    };
-  } else {
-    coldEmail = { origin: "sample", rows: sample.sampleCampaigns(range), ...sample.sampleColdFunnel(range) };
-  }
+  const coldEmail: AnalyticsView["coldEmail"] = instantlyReal
+    ? {
+        origin: "real",
+        rows: campaignRows ?? [],
+        funnel: funnel?.funnel ?? [],
+        health: funnel?.health ?? null,
+        steps: steps ?? [],
+      }
+    : { origin: "sample", rows: sample.sampleCampaigns(range), ...sample.sampleColdFunnel(range) };
 
   return {
     range,

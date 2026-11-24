@@ -197,15 +197,17 @@ export async function bySource(
 }
 
 export async function searchDaily(db: Db, p: Period): Promise<DailySearchPoint[]> {
-  const rows = await db.query<{ day: string; clicks: number; impressions: number }>(
-    `select day::text as day, clicks, impressions
-       from spiral.gsc_daily_site where day between $1::date and $2::date
-      order by day`,
-    [p.start, p.end],
-  );
+  const [rows, [last]] = await Promise.all([
+    db.query<{ day: string; clicks: number; impressions: number }>(
+      `select day::text as day, clicks, impressions
+         from spiral.gsc_daily_site where day between $1::date and $2::date
+        order by day`,
+      [p.start, p.end],
+    ),
+    db.query<{ d: string | null }>("select max(day)::text as d from spiral.gsc_daily_site"),
+  ]);
   const byDay = new Map(rows.map((r) => [r.day, r]));
   // Days Search Console hasn't reported yet are left off, not drawn as zero.
-  const [last] = await db.query<{ d: string | null }>("select max(day)::text as d from spiral.gsc_daily_site");
   const end = last?.d && last.d < p.end ? last.d : p.end;
   return eachDay(p.start, end).map((day) => byDay.get(day) ?? { day, clicks: 0, impressions: 0 });
 }
@@ -213,14 +215,23 @@ export async function searchDaily(db: Db, p: Period): Promise<DailySearchPoint[]
 const SEARCH_COLUMNS = `sum(clicks)::int as clicks, sum(impressions)::int as impressions,
   coalesce(sum(position * impressions) / nullif(sum(impressions), 0), 0)::float8 as position`;
 
-/** The top searches of each group (by clicks, then times shown), so quiet groups still show their searches. */
-export async function topSearches(db: Db, p: Period, perGroup = 40): Promise<SearchRow[]> {
-  const rows = await db.query<Omit<SearchRow, "group">>(
+export type QueryTotal = Omit<SearchRow, "group">;
+
+/**
+ * Every search in the period with its totals, most clicked first. Read once and
+ * shared by the searches table and the search groups (both need the full list).
+ */
+export async function searchQueryTotals(db: Db, p: Period): Promise<QueryTotal[]> {
+  return db.query<QueryTotal>(
     `select query, ${SEARCH_COLUMNS}
        from spiral.gsc_daily where day between $1::date and $2::date
-      group by query order by clicks desc, impressions desc limit 5000`,
+      group by query order by clicks desc, impressions desc, query`,
     [p.start, p.end],
   );
+}
+
+/** The top searches of each group (by clicks, then times shown), so quiet groups still show their searches. */
+export function topSearches(rows: QueryTotal[], perGroup = 40): SearchRow[] {
   const taken = new Map<string, number>();
   const out: SearchRow[] = [];
   for (const r of rows) {
@@ -258,53 +269,59 @@ export async function pageRows(
     return r;
   };
 
-  const clicks = await db.query<{ page: string; clicks: number }>(
-    `select page, sum(clicks)::int as clicks from spiral.gsc_daily_page
-      where day between $1::date and $2::date group by page order by clicks desc limit 50`,
-    [p.start, p.end],
-  );
-  for (const c of clicks) row(c.page).googleClicks += c.clicks;
-
-  if (opts.withVisits) {
-    const visits = await db.query<{ page: string; visits: number }>(
-      `select landing_page as page, sum(sessions)::int as visits from spiral.ga4_daily
-        where day between $1::date and $2::date group by landing_page`,
+  // The four reads run together; their results are applied in this order below.
+  const [clicks, visits, forms, searches] = await Promise.all([
+    db.query<{ page: string; clicks: number }>(
+      `select page, sum(clicks)::int as clicks from spiral.gsc_daily_page
+        where day between $1::date and $2::date group by page order by clicks desc limit 50`,
       [p.start, p.end],
-    );
-    for (const v of visits) {
-      const r = rows.get(pagePath(v.page));
-      if (r && r.visits !== null) r.visits += v.visits;
-    }
-  }
+    ),
+    opts.withVisits
+      ? db.query<{ page: string; visits: number }>(
+          `select landing_page as page, sum(sessions)::int as visits from spiral.ga4_daily
+            where day between $1::date and $2::date group by landing_page`,
+          [p.start, p.end],
+        )
+      : [],
+    opts.withForms
+      ? db.query<{ page: string; leads: number; signups: number }>(
+          `select fe.page_url as page, count(distinct ${WHO})::int as leads,
+                  count(distinct ${WHO}) filter (where fe.entry_type = 'complete')::int as signups
+             from spiral.form_entries fe
+            where ${IN_PERIOD} and fe.page_url is not null
+            group by fe.page_url`,
+          [p.start, p.end, tz],
+        )
+      : [],
+    // Only each page's top five searches leave the database (a page's address can have a few
+    // spellings, so the five are picked again below once they're merged by path).
+    db.query<Omit<SearchRow, "group"> & { page: string }>(
+      `select page, query, clicks, impressions, position from (
+         select page, query, ${SEARCH_COLUMNS},
+                row_number() over (partition by page order by sum(clicks) desc, sum(impressions) desc, query) as rank
+           from spiral.gsc_daily where day between $1::date and $2::date
+          group by page, query
+       ) ranked where rank <= 5`,
+      [p.start, p.end],
+    ),
+  ]);
 
-  if (opts.withForms) {
-    const forms = await db.query<{ page: string; leads: number; signups: number }>(
-      `select fe.page_url as page, count(distinct ${WHO})::int as leads,
-              count(distinct ${WHO}) filter (where fe.entry_type = 'complete')::int as signups
-         from spiral.form_entries fe
-        where ${IN_PERIOD} and fe.page_url is not null
-        group by fe.page_url`,
-      [p.start, p.end, tz],
-    );
-    for (const f of forms) {
-      const r = row(f.page);
-      r.leads = (r.leads ?? 0) + f.leads;
-      r.signups = (r.signups ?? 0) + f.signups;
-    }
+  for (const c of clicks) row(c.page).googleClicks += c.clicks;
+  for (const v of visits) {
+    const r = rows.get(pagePath(v.page));
+    if (r && r.visits !== null) r.visits += v.visits;
   }
-
-  const searches = await db.query<Omit<SearchRow, "group"> & { page: string }>(
-    `select page, query, ${SEARCH_COLUMNS}
-       from spiral.gsc_daily where day between $1::date and $2::date
-      group by page, query`,
-    [p.start, p.end],
-  );
+  for (const f of forms) {
+    const r = row(f.page);
+    r.leads = (r.leads ?? 0) + f.leads;
+    r.signups = (r.signups ?? 0) + f.signups;
+  }
   for (const s of searches) {
     const r = rows.get(pagePath(s.page));
     if (r) r.topSearches.push({ query: s.query, clicks: s.clicks, impressions: s.impressions, position: s.position, group: searchGroup(s.query) });
   }
   for (const r of rows.values()) {
-    r.topSearches = r.topSearches.sort((a, b) => b.clicks - a.clicks || b.impressions - a.impressions).slice(0, 5);
+    r.topSearches = r.topSearches.sort((a, b) => b.clicks - a.clicks || b.impressions - a.impressions || (a.query < b.query ? -1 : 1)).slice(0, 5);
   }
 
   return [...rows.values()]

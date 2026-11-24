@@ -37,7 +37,7 @@ See everything → Step 2 Onboarding → Step 3 AI calls → Step 4 Georgia and 
 
 ## Stack
 Next.js 16 (App Router, `cacheComponents` on) · React 19 · TypeScript · Tailwind v4 · shadcn/ui (Radix) ·
-recharts · zod · Supabase (Postgres + Auth) · vitest · Railway (Dockerfile + railway.json).
+recharts · zod · Supabase (Postgres + Auth) · vitest · Railway (Dockerfile; service settings live on Railway).
 
 This Next.js version differs from older ones — read `node_modules/next/dist/docs/` before writing Next code.
 With Cache Components: anything that reads cookies, search params or the database must sit inside `<Suspense>`;
@@ -59,7 +59,15 @@ With Cache Components: anything that reads cookies, search params or the databas
   and field name comes from the official spec (Google discovery docs, Instantly OpenAPI); cite it in the file.
 - `lib/sync/` — `runSync` runs forms → instantly → gsc → ga4, logging each in `spiral.sync_runs`. A step
   returns "skipped" (sample data stays) when connected but empty. `server.ts` = env config, one-at-a-time
-  lock, `after()`. Triggered by `/api/cron/sync` (Bearer `CRON_SECRET`), "Sync now", and Google connect.
+  lock, `after()`, `syncDue()`. Triggered by `/api/cron/sync` (Bearer `CRON_SECRET`), "Sync now", and Google
+  connect. `scheduler.ts` (started by `instrumentation.ts` in production) asks `/api/cron/sync?when=due`
+  every 10 minutes (once a day after 6 am New York) and warms the cache on start; `self.ts` calls the
+  server's own `/api/cron/*` routes, because cached work must run inside a request.
+- Speed: `lib/analytics/index.ts` caches views with `"use cache"`, keyed by range + New York day + data
+  version (newest `sync_runs` time); the page caches the rendered dashboard with the same key, and
+  `/api/cron/warm` builds all ranges after each sync. Keep queries parallel (`Promise.all`) and Recharts
+  behind `components/analytics/lazy-plots.tsx`. Production: one Railway replica in `iad` (Virginia) beside
+  Supabase `us-east-1` (settings live on Railway; `railway.json` is no longer read); `DATABASE_URL` is the session pooler, TLS verified with `lib/db/supabase-ca.ts`.
 - `lib/people.ts` — one record per person: form entries upsert by email, else phone; never blank out data.
 
 ## Commands

@@ -29,8 +29,6 @@ RUN addgroup --system --gid 1001 nodejs && adduser --system --uid 1001 nextjs
 COPY --from=builder /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
-# The Railway cron service runs this same image with: node scripts/cron-sync.mjs
-COPY --from=builder /app/scripts/cron-sync.mjs ./scripts/cron-sync.mjs
 USER nextjs
 EXPOSE 3000
 ENV PORT=3000

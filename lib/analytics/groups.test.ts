@@ -3,13 +3,34 @@ import { pageGroup, searchGroup } from "./groups";
 
 describe("search groups (cases from Spiral NY's Search Console)", () => {
   it("knows searches for Spiral", () => {
-    for (const q of ["spiralny", "spiral ny", "spiral ny real estate", "spiralny new york ny", "spiralny reviews", "the spiral ny"]) {
+    for (const q of [
+      "spiralny",
+      "spiral ny",
+      "spiral ny real estate",
+      "spiralny new york ny",
+      "spiralny reviews",
+      "the spiral ny",
+      "site:spiralny.com",
+      "luca matteucci spiralny linkedin",
+      "what card product does spiralny (spiralny.com) use?",
+    ]) {
       expect(searchGroup(q), q).toBe("brand");
     }
   });
 
   it("keeps other spirals out of the brand", () => {
-    for (const q of ["przewód spiralny pneumatyczny", "peszel spiralny", "spiral staircases nyc"]) {
+    for (const q of [
+      "przewód spiralny pneumatyczny",
+      "peszel spiralny",
+      "spiral staircases nyc",
+      "drut spiralny",
+      "sit spiralny",
+      "model spiralny",
+      "notes spiralny",
+      "związek spiralny",
+      "aplikator spiralny",
+      '"spiralny adapter kablowy qly-s do naczepy 24v wtyk 15-pin / 2 zalewane wtyki 7-pin typu n+s 4m"',
+    ]) {
       expect(searchGroup(q), q).not.toBe("brand");
     }
   });

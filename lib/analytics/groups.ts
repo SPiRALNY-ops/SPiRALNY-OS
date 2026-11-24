@@ -30,8 +30,10 @@ export const PAGE_GROUPS: { key: PageGroupKey; label: string; rule: string }[] =
 ];
 
 const BRAND = /\bspiral ?ny\b|\bspiralny|\bspiral (nyc|new york|real estate|realty|agency|company|properties|rentals?|cloud)\b|^(the )?spiral$/i;
-// Non-English words that contain "spiralny" (e.g. Polish for "spiral" hoses) and other spirals.
-const NOT_BRAND = /przew|peszel|pneumat|kabel|staircase|stair\b|notebook/i;
+// "Spiralny" is also Polish for "spiral" (spiral wire, hoses, notebooks…): Polish letters, Polish words,
+// or a single word followed by "spiralny" ("drut spiralny") are not Spiral NY. Also other spirals.
+const NOT_BRAND =
+  /przew|peszel|pneumat|kabel|kablow|adapter|aplikator|drut|zwi[aą]zek|staircase|stair\b|notebook|[ąćęłńśźż]|^(?!the\b|www\b)[^\s"]+ spiralny$/i;
 const RECRUITING =
   /commission|split|brokerage|\bbrokers?\b|licen[cs]e.*\b(park|hang|hold|keep|active|inactive)|\b(park|parking|hang|hold)\b.*licen[cs]e|referral (agent|only|license|company)|real estate referral|\bjoin|career|hiring|sponsor|desk fee|\b(100|90) ?%|\b100 percent/i;
 

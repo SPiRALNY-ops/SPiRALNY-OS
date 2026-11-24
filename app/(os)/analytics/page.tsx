@@ -4,8 +4,10 @@ import { Lock } from "lucide-react";
 import { ConnectionsPanel } from "@/components/analytics/connections-panel";
 import { AnalyticsDashboard } from "@/components/analytics/dashboard";
 import { Skeleton } from "@/components/ui/skeleton";
-import { getAnalytics } from "@/lib/analytics";
+import { cacheLife } from "next/cache";
+import { cachedView, viewKey } from "@/lib/analytics";
 import { parseRangeKey } from "@/lib/analytics/range";
+import type { RangeKey } from "@/lib/analytics/types";
 import { canSee, requireUser } from "@/lib/auth/session";
 import { getConnectionsStatus } from "@/lib/sync/server";
 
@@ -28,7 +30,9 @@ export default function AnalyticsPage({ searchParams }: PageProps<"/analytics">)
 }
 
 async function AnalyticsContent({ searchParams }: Pick<PageProps<"/analytics">, "searchParams">) {
-  const user = await requireUser();
+  const { range, google } = await searchParams;
+  // The session check and the data version are independent reads, so they run together.
+  const [user, key] = await Promise.all([requireUser(), viewKey(parseRangeKey(Array.isArray(range) ? range[0] : range))]);
   if (!canSee(user, "analytics")) {
     return (
       <div className="flex items-start gap-3 rounded-xl border bg-card p-5">
@@ -40,18 +44,30 @@ async function AnalyticsContent({ searchParams }: Pick<PageProps<"/analytics">, 
       </div>
     );
   }
-  const { range, google } = await searchParams;
-  const view = await getAnalytics(parseRangeKey(Array.isArray(range) ? range[0] : range));
-  if (user.role !== "opslabs") return <AnalyticsDashboard view={view} />;
+  const dashboard = <Dashboard {...key} />;
+  if (user.role !== "opslabs") return dashboard;
 
-  // OpsLabs also sees where the numbers come from, and can connect Google or sync.
-  const status = await getConnectionsStatus();
+  // OpsLabs also sees where the numbers come from, and can connect Google or sync (rendered alongside).
   return (
     <div className="flex flex-col gap-8">
-      <AnalyticsDashboard view={view} />
-      <ConnectionsPanel status={status} notice={typeof google === "string" ? google : undefined} />
+      {dashboard}
+      <Connections notice={typeof google === "string" ? google : undefined} />
     </div>
   );
+}
+
+/**
+ * The rendered dashboard, stored with the same key as its numbers (range, day, data version),
+ * so a repeat visit sends the finished page without building or rendering anything.
+ */
+async function Dashboard({ rangeKey, today, version }: { rangeKey: RangeKey; today: string; version: string }) {
+  "use cache";
+  cacheLife({ stale: 3600, revalidate: 86_400, expire: 172_800 });
+  return <AnalyticsDashboard view={await cachedView(rangeKey, today, version)} />;
+}
+
+async function Connections({ notice }: { notice?: string }) {
+  return <ConnectionsPanel status={await getConnectionsStatus()} notice={notice} />;
 }
 
 function AnalyticsSkeleton() {

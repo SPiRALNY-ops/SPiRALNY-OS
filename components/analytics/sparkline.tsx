@@ -8,7 +8,8 @@ import { formatFull } from "@/lib/format";
  */
 export function Sparkline({ values, className }: { values: (number | null)[]; className?: string }) {
   const known = values.map((v, i) => [i, v] as const).filter((p): p is readonly [number, number] => p[1] !== null);
-  if (values.length < 2 || known.length === 0) return <div className={className} aria-hidden />;
+  // One recorded day is a dot, not a trend: leave the space empty until there are two.
+  if (values.length < 2 || known.length < 2) return <div className={className} aria-hidden />;
   const nums = known.map(([, v]) => v);
   const max = Math.max(...nums, 1);
   const n = values.length;

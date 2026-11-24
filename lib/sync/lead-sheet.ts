@@ -4,6 +4,7 @@
  * Google, or a "How did you find us?" answer) fills in a person's source when
  * nothing better is known yet.
  */
+import { plural } from "@/lib/format";
 import { upsertPerson } from "@/lib/people";
 import { LEAD_SHEET_TABS, parseLeadSheetTab, tabRule } from "@/lib/sources/lead-sheet";
 import { readTabs, sheetTitles } from "@/lib/sources/sheets";
@@ -96,7 +97,7 @@ export async function syncLeadSheet(ctx: SyncContext): Promise<SourceResult> {
     rangeStart: days[0],
     rangeEnd: days.at(-1),
     message:
-      `${leads} leads and ${signups} sign-ups from ${titles.map((t) => t.trim()).join(", ")}.` +
-      (undated ? ` ${undated} row(s) have no date in the sheet, so they are kept but not counted on any day.` : ""),
+      `${plural(leads, "lead", "leads")} and ${plural(signups, "sign-up", "sign-ups")} from ${titles.map((t) => t.trim()).join(", ")}.` +
+      (undated ? ` ${undated === 1 ? "1 row has" : `${undated} rows have`} no date in the sheet, so ${undated === 1 ? "it is" : "they are"} kept but not counted on any day.` : ""),
   };
 }

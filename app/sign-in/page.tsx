@@ -19,7 +19,7 @@ export default function SignInPage() {
             width={200}
             height={68}
             loading="eager"
-            className="h-auto w-[200px]"
+            style={{ width: 200, height: 68, objectFit: "contain" }}
           />
           <p className="mt-3 text-sm font-semibold text-sidebar-muted">Spiral OS</p>
         </div>

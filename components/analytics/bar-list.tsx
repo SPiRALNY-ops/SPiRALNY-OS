@@ -1,5 +1,5 @@
 import type { Ranked } from "@/lib/analytics/types";
-import { formatFull, formatPercent } from "@/lib/format";
+import { formatFull, formatShare } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 /**
@@ -43,7 +43,7 @@ export function BarList({
               <span className="shrink-0 tabular">
                 <span className="font-semibold">{formatFull(item.value)}</span>
                 {valueSuffix && <span className="text-muted-foreground"> {item.value === 1 ? valueSuffix[0] : valueSuffix[1]}</span>}
-                <span className="ml-2 inline-block w-11 text-right text-muted-foreground">{formatPercent(share, 0)}</span>
+                <span className="ml-2 inline-block w-11 text-right text-muted-foreground">{formatShare(share)}</span>
               </span>
             </div>
             <div aria-hidden className="mt-1.5 h-2 rounded-full bg-muted">

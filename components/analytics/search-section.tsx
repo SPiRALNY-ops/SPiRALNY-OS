@@ -3,7 +3,7 @@ import { formatFull, formatPercent, formatPosition } from "@/lib/format";
 import { SampleBadge } from "./chart-parts";
 import { GroupTable } from "./group-table";
 import { Section } from "./section";
-import { Change, Stat } from "./stat";
+import { Change, STAT_GRID, Stat } from "./stat";
 
 type Search = AnalyticsView["searches"];
 
@@ -17,7 +17,7 @@ export function SearchSummary({ search, periodLabel }: { search: Search; periodL
         <h3 className="text-base font-bold">Google search, last {periodLabel}</h3>
         {search.origin === "sample" && <SampleBadge />}
       </div>
-      <div className="grid grid-cols-2 gap-x-6 gap-y-5 lg:grid-cols-4">
+      <div className={STAT_GRID}>
         <Stat
           label="Clicks"
           value={formatFull(t.clicks)}

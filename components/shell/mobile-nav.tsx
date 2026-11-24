@@ -26,7 +26,7 @@ export function MobileNav({ footer }: { footer: React.ReactNode }) {
         <SheetHeader className="border-b border-sidebar-border px-5 py-5">
           <SheetTitle className="sr-only">Spiral OS menu</SheetTitle>
           <SheetDescription className="sr-only">Go to a Spiral OS tool</SheetDescription>
-          <Image src="/brand/spiralny-logo@2x.png" alt="SPiRALNY Real Estate" width={156} height={53} style={{ width: 156, height: "auto" }} />
+          <Image src="/brand/spiralny-logo@2x.png" alt="SPiRALNY Real Estate" width={156} height={53} style={{ width: 156, height: 53, objectFit: "contain" }} />
         </SheetHeader>
         <div className="flex-1 overflow-y-auto px-3 py-4">
           <NavLinks onNavigate={() => setOpen(false)} />

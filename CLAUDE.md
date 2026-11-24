@@ -28,6 +28,13 @@ See everything → Step 2 Onboarding → Step 3 AI calls → Step 4 Georgia and 
 - Lead-source stacking order is google → referral → cold_email → unknown (validated: aqua beside grey
   fails colour-blind separation). Inside the charcoal band, series use their dark-surface steps (`.hero-band`).
 - Big numbers use proportional figures; `.tabular` only for aligned columns.
+- Phones are first-class: no table ever scrolls sideways on a phone. Below `sm` every table is a list (name and
+  note left, the figure the list is sorted by on the right, the other figures in one plain line under it, a
+  `SortSelect` instead of column headers); Pages and Campaigns stay lists until `xl`, where all columns fit.
+  KPI and `Stat` figures become rows on phones (`STAT_GRID`); four/five columns only from `xl`. The "?" is a
+  popover (`InfoTip`: tap on phones, hover with a mouse); `TipLabel` keeps it on the label's last line.
+  Sideways-scrolling rows (chips, chapter links) fade at the hidden edge (`useEdgeFade`). Check 360, 390, 768,
+  1024, 1280 and 1440 wide for sideways overflow before shipping.
 - Every section says its finding in one plain sentence (computed), explains terms behind a "?" (`InfoTip`),
   and states its source and caveats in the footer. One-hue ranked bars use `--chart-slate` (site slate).
 - Honesty rules: no comparison when a source has no data for the whole previous period ("No earlier data");

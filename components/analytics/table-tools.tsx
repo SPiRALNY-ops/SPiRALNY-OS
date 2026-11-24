@@ -1,8 +1,9 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react";
+import { ArrowDown, ArrowUp, ArrowUpDown, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useEdgeFade } from "./scroll-row";
 
 export type SortState<K extends string> = { key: K; dir: "asc" | "desc" };
 
@@ -22,7 +23,64 @@ export function useSort<T, K extends string>(rows: T[], initial: SortState<K>, v
   }, [rows, sort, value]);
   const toggle = (key: K, numeric = true) =>
     setSort((s) => (s.key === key ? { key, dir: s.dir === "asc" ? "desc" : "asc" } : { key, dir: numeric ? "desc" : "asc" }));
-  return { sorted, sort, toggle };
+  return { sorted, sort, toggle, setSort };
+}
+
+/**
+ * Phones sort a list with one picker (column headers do it on wider screens).
+ * Numbers sort high to low, text A to Z.
+ */
+export function SortSelect<K extends string>({
+  options,
+  sort,
+  onChange,
+}: {
+  options: { key: K; label: string; numeric?: boolean }[];
+  sort: SortState<K>;
+  onChange: (next: SortState<K>) => void;
+}) {
+  return (
+    <label className="relative inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+      Sort by
+      <select
+        value={sort.key}
+        onChange={(e) => {
+          const o = options.find((x) => x.key === e.target.value)!;
+          onChange({ key: o.key, dir: o.numeric === false ? "asc" : "desc" });
+        }}
+        className="appearance-none rounded-full border bg-card py-1.5 pr-7 pl-3 text-xs font-semibold text-foreground focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring"
+      >
+        {options.map((o) => (
+          <option key={o.key} value={o.key}>
+            {o.label}
+          </option>
+        ))}
+      </select>
+      <ChevronDown aria-hidden className="pointer-events-none absolute right-2.5 size-3.5 text-muted-foreground" />
+    </label>
+  );
+}
+
+/** A figure with its unit, for the right side of a phone list row: "84 clicks". */
+export function RowFigure({ value, unit }: { value: React.ReactNode; unit?: string }) {
+  return (
+    <span className="shrink-0 text-right text-sm whitespace-nowrap tabular">
+      <span className="font-semibold">{value}</span>
+      {unit && <span className="text-muted-foreground"> {unit}</span>}
+    </span>
+  );
+}
+
+/** A one-hue bar from zero (dataviz: one baseline), with its printed figure beside it. */
+export function InlineBar({ ratio, label, labelWidth = "w-11" }: { ratio: number; label: React.ReactNode; labelWidth?: string }) {
+  return (
+    <div className="flex items-center gap-2.5">
+      <div aria-hidden className="h-2 flex-1 rounded-full bg-muted">
+        <div className="h-2 rounded-full bg-chart-slate" style={{ width: `${Math.min(100, Math.max(ratio * 100, ratio > 0 ? 1.5 : 0))}%` }} />
+      </div>
+      <span className={cn("shrink-0 text-right text-xs tabular", labelWidth)}>{label}</span>
+    </div>
+  );
 }
 
 /** A column header that sorts its table, announcing the current order to screen readers. */
@@ -76,8 +134,9 @@ export function FilterChips<K extends string>({
   onChange: (key: K) => void;
   label: string;
 }) {
+  const [ref, fadeClass] = useEdgeFade<HTMLDivElement>();
   return (
-    <div role="radiogroup" aria-label={label} className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1">
+    <div ref={ref} role="radiogroup" aria-label={label} className={cn("no-scrollbar -mx-1 flex gap-1.5 overflow-x-auto px-1 py-0.5", fadeClass)}>
       {options.map((o) => {
         const selected = o.key === value;
         return (

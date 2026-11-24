@@ -3,22 +3,30 @@ import type { AnalyticsView, EmailStepRow } from "@/lib/analytics/types";
 import { formatFull, formatPercent } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { SampleBadge } from "./chart-parts";
-import { InfoTip } from "./info-tip";
+import { TipLabel } from "./info-tip";
 import { Section } from "./section";
 import { CampaignsTable } from "./simple-tables";
-import { Stat } from "./stat";
+import { STAT_GRID, Stat } from "./stat";
+import { InlineBar, RowFigure } from "./table-tools";
 
 type Cold = AnalyticsView["coldEmail"];
 
+/** One stage: a row on phones (label and note left, figure right), a small card from md up. */
 function FunnelCard({ label, value, sub, info, tone = "instantly" }: { label: string; value: number; sub?: string; info?: string; tone?: "instantly" | "records" }) {
   return (
-    <div className={cn("min-w-0 flex-1 rounded-lg border p-3.5", tone === "records" ? "bg-muted/60" : "bg-card")}>
-      <p className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
-        {label}
-        {info && <InfoTip label={label}>{info}</InfoTip>}
+    <div
+      className={cn(
+        "grid min-w-0 flex-1 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 rounded-lg border px-3.5 py-2.5 md:block md:p-3.5",
+        tone === "records" ? "bg-muted/60" : "bg-card",
+      )}
+    >
+      <p className={cn("col-start-1 row-start-1 text-xs font-medium text-muted-foreground", !sub && "row-span-2")}>
+        <TipLabel label={label} info={info} />
       </p>
-      <p className="mt-1 text-2xl leading-tight font-semibold tracking-tight">{formatFull(value)}</p>
-      {sub && <p className="mt-0.5 text-xs text-muted-foreground">{sub}</p>}
+      <p className="col-start-2 row-span-2 row-start-1 text-xl leading-tight font-semibold tracking-tight md:mt-1 md:text-2xl">
+        {formatFull(value)}
+      </p>
+      {sub && <p className="col-start-1 row-start-2 mt-0.5 text-xs text-muted-foreground">{sub}</p>}
     </div>
   );
 }
@@ -85,7 +93,7 @@ export function ColdHealth({ cold }: { cold: Cold }) {
         <h3 className="text-base font-bold">Sending</h3>
         {cold.origin === "sample" && <SampleBadge />}
       </div>
-      <div className="grid grid-cols-2 gap-x-6 gap-y-5 lg:grid-cols-4">
+      <div className={STAT_GRID}>
         <Stat label="Emails sent" value={formatFull(h.sent)} info="Every email Instantly sent in this period, follow-ups included." />
         <Stat
           label="New people emailed"
@@ -107,6 +115,28 @@ export function ColdHealth({ cold }: { cold: Cold }) {
       </div>
     </section>
   );
+}
+
+type StepTotals = { step: number; variants: EmailStepRow[]; sent: number; replies: number; opportunities: number };
+
+/** Each email, then its A/B versions (when it has more than one) right under it. */
+function rowsOf(steps: StepTotals[]) {
+  return steps.flatMap((s) => {
+    const rows = [{ key: `${s.step}`, label: `Email ${s.step + 1}`, sub: false, sent: s.sent, replies: s.replies, opportunities: s.opportunities }];
+    if (s.variants.length > 1) {
+      for (const v of s.variants) {
+        rows.push({
+          key: `${s.step}-${v.variant}`,
+          label: `Version ${String.fromCharCode(65 + v.variant)}`,
+          sub: true,
+          sent: v.sent,
+          replies: v.replies,
+          opportunities: v.opportunities,
+        });
+      }
+    }
+    return rows;
+  });
 }
 
 /** Which email in the sequences gets replies (all campaigns together), A/B variants listed under their email. */
@@ -139,11 +169,28 @@ export function EmailSteps({ cold }: { cold: Cold }) {
       {steps.length === 0 ? (
         <p className="py-4 text-sm text-muted-foreground">No emails sent in this period.</p>
       ) : (
-        <div className="-mx-4 overflow-x-auto sm:mx-0">
+        <>
+        <ul aria-label="Replies for each email" className="divide-y sm:hidden">
+          {rowsOf(steps).map((r) => (
+            <li key={r.key} className={cn("py-3 first:pt-1 last:pb-0", r.sub && "pl-4")}>
+              <div className="flex items-baseline justify-between gap-3">
+                <p className={cn("text-sm", r.sub ? "text-muted-foreground" : "font-medium")}>{r.label}</p>
+                <RowFigure value={formatFull(r.replies)} unit={r.replies === 1 ? "reply" : "replies"} />
+              </div>
+              <div className="mt-2">
+                <InlineBar ratio={maxRate ? rate(r) / maxRate : 0} label={formatPercent(rate(r), 1)} />
+              </div>
+              <p className="mt-1.5 text-xs text-muted-foreground tabular">
+                {formatFull(r.sent)} sent, {formatFull(r.opportunities)} interested
+              </p>
+            </li>
+          ))}
+        </ul>
+        <div className="relative hidden overflow-x-auto sm:block">
           <table className="w-full min-w-[560px] text-sm">
             <thead>
               <tr className="border-b text-xs text-muted-foreground">
-                <th scope="col" className="py-2 pr-3 pl-4 text-left font-medium sm:pl-0">
+                <th scope="col" className="py-2 pr-3 text-left font-medium">
                   Email
                 </th>
                 <th scope="col" className="py-2 pr-3 text-right font-medium">
@@ -155,44 +202,29 @@ export function EmailSteps({ cold }: { cold: Cold }) {
                 <th scope="col" className="w-[34%] py-2 pr-3 text-left font-medium">
                   Reply rate
                 </th>
-                <th scope="col" className="py-2 pr-4 text-right font-medium sm:pr-0">
+                <th scope="col" className="py-2 text-right font-medium">
                   Interested
                 </th>
               </tr>
             </thead>
             <tbody>
-              {steps.flatMap((s) => {
-                const rows = [{ key: `${s.step}`, label: `Email ${s.step + 1}`, sub: false, ...s }];
-                if (s.variants.length > 1) {
-                  for (const v of s.variants) {
-                    rows.push({ key: `${s.step}-${v.variant}`, label: `Version ${String.fromCharCode(65 + v.variant)}`, sub: true, ...s, ...v });
-                  }
-                }
-                return rows.map((r) => (
-                  <tr key={r.key} className={cn("border-b transition-colors last:border-0 hover:bg-muted/50", r.sub && "text-muted-foreground")}>
-                    <th scope="row" className={cn("py-2.5 pr-3 pl-4 text-left font-medium sm:pl-0", r.sub && "pl-8 font-normal sm:pl-4")}>
-                      {r.label}
-                    </th>
-                    <td className="py-2.5 pr-3 text-right tabular">{formatFull(r.sent)}</td>
-                    <td className="py-2.5 pr-3 text-right tabular">{formatFull(r.replies)}</td>
-                    <td className="py-2.5 pr-3">
-                      <div className="flex items-center gap-2.5">
-                        <div aria-hidden className="h-2 flex-1 rounded-full bg-muted">
-                          <div
-                            className="h-2 rounded-full bg-chart-slate"
-                            style={{ width: maxRate ? `${Math.max((rate(r) / maxRate) * 100, r.replies ? 1.5 : 0)}%` : 0 }}
-                          />
-                        </div>
-                        <span className="w-11 text-right text-xs tabular">{formatPercent(rate(r), 1)}</span>
-                      </div>
-                    </td>
-                    <td className="py-2.5 pr-4 text-right tabular sm:pr-0">{formatFull(r.opportunities)}</td>
-                  </tr>
-                ));
-              })}
+              {rowsOf(steps).map((r) => (
+                <tr key={r.key} className={cn("border-b transition-colors last:border-0 hover:bg-muted/50", r.sub && "text-muted-foreground")}>
+                  <th scope="row" className={cn("py-2.5 pr-3 text-left font-medium", r.sub && "pl-4 font-normal")}>
+                    {r.label}
+                  </th>
+                  <td className="py-2.5 pr-3 text-right tabular">{formatFull(r.sent)}</td>
+                  <td className="py-2.5 pr-3 text-right tabular">{formatFull(r.replies)}</td>
+                  <td className="py-2.5 pr-3">
+                    <InlineBar ratio={maxRate ? rate(r) / maxRate : 0} label={formatPercent(rate(r), 1)} />
+                  </td>
+                  <td className="py-2.5 text-right tabular">{formatFull(r.opportunities)}</td>
+                </tr>
+              ))}
             </tbody>
           </table>
         </div>
+        </>
       )}
     </Section>
   );

@@ -16,6 +16,7 @@ import {
   findLeadsByEmail,
   listCampaigns,
 } from "@/lib/sources/instantly";
+import { plural } from "@/lib/format";
 import { hasRows, insertRows, lastSyncedThrough } from "./store";
 import type { SourceResult, SyncContext } from "./types";
 
@@ -286,6 +287,8 @@ export async function syncInstantly(ctx: SyncContext): Promise<SourceResult> {
     rows: written,
     rangeStart: start,
     rangeEnd: end,
-    message: `${campaigns.length} campaigns; ${pending.length} form email(s) checked, ${matched} Instantly match(es).`,
+    message:
+      `${plural(campaigns.length, "campaign", "campaigns")}.` +
+      (pending.length ? ` Looked up ${plural(pending.length, "new lead email", "new lead emails")} in Instantly and found ${plural(matched, "match", "matches")}.` : ""),
   };
 }

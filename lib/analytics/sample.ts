@@ -96,7 +96,7 @@ const KPI_META: { key: KpiKey; label: string; source: Kpi["source"] }[] = [
   { key: "signups", label: "Completed sign-ups", source: "forms" },
   { key: "unfinished", label: "Unfinished forms", source: "forms" },
   { key: "visits", label: "Website visits", source: "ga4" },
-  { key: "googleClicks", label: "Clicks from Google", source: "gsc" },
+  { key: "googleClicks", label: "Google clicks", source: "gsc" },
   { key: "replies", label: "Cold email replies", source: "instantly" },
 ];
 export { KPI_META };

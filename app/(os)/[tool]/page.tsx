@@ -31,7 +31,7 @@ async function ComingSoon({ params }: Pick<PageProps<"/[tool]">, "params">) {
   return (
     <div className="mx-auto max-w-2xl px-4 py-10 sm:px-6 lg:py-16">
       <span className="inline-flex items-center rounded-full bg-brand-soft px-2.5 py-1 text-xs font-semibold text-foreground">
-        Coming in Step {tool.step} · {STEP_NAMES[tool.step]}
+        Coming in Step {tool.step}: {STEP_NAMES[tool.step]}
       </span>
       <h1 className="mt-4 text-3xl font-semibold tracking-tight">{tool.name}</h1>
       <p className="mt-2 text-lg text-muted-foreground">{tool.summary}</p>

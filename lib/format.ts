@@ -17,6 +17,34 @@ export function formatPercent(ratio: number, digits = 1): string {
   return `${(ratio * 100).toFixed(digits)}%`;
 }
 
+/** A share of a whole, in whole percent; a tiny non-zero share reads "<1%", never "0%". */
+export function formatShare(ratio: number): string {
+  if (!Number.isFinite(ratio)) return "—";
+  if (ratio > 0 && ratio < 0.005) return "<1%";
+  return `${Math.round(ratio * 100)}%`;
+}
+
+/** Whole-number percentages of the total that add up to exactly 100 (largest remainder). */
+export function wholePercents(values: number[]): number[] {
+  const total = values.reduce((s, v) => s + v, 0);
+  if (!total) return values.map(() => 0);
+  const raw = values.map((v) => (v / total) * 100);
+  const out = raw.map((r) => Math.floor(r));
+  let left = 100 - out.reduce((s, v) => s + v, 0);
+  const order = raw.map((r, i) => ({ i, rest: r - Math.floor(r) })).sort((a, b) => b.rest - a.rest || a.i - b.i);
+  for (const { i } of order) {
+    if (left <= 0) break;
+    out[i] += 1;
+    left -= 1;
+  }
+  return out;
+}
+
+/** "1 row" / "415 rows". */
+export function plural(n: number, one: string, many: string): string {
+  return `${formatFull(n)} ${n === 1 ? one : many}`;
+}
+
 export function formatPosition(p: number): string {
   return p > 0 ? p.toFixed(1) : "—";
 }

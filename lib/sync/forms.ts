@@ -94,7 +94,7 @@ export async function syncForms(ctx: SyncContext): Promise<SourceResult> {
   }
 
   const note =
-    (ignored ? ` ${ignored} matching email(s) were not Spiral OS entries and were ignored.` : "") +
+    (ignored ? ` ${ignored} matching ${ignored === 1 ? "email was" : "emails were"} not Spiral OS entries and ${ignored === 1 ? "was" : "were"} ignored.` : "") +
     (tests ? ` ${tests} OpsLabs test entr${tests === 1 ? "y was" : "ies were"} skipped.` : "");
   if (!(await hasRows(db, "spiral.form_entries"))) {
     return {

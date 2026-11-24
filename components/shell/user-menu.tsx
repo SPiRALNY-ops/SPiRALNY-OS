@@ -17,6 +17,8 @@ export async function UserMenu() {
   const session = await getSession();
   const user = session.status === "signed-in" ? session.user : null;
   const name = user?.name ?? user?.email ?? "Not signed in";
+  // The second line says who this is: the role, or the email when the name already says the role.
+  const detail = user ? (user.name && user.name !== ROLE_LABEL[user.role] ? ROLE_LABEL[user.role] : user.email) : null;
   return (
     <div className="flex items-center gap-2.5">
       {/* Charcoal on orange is 4.7:1, so the initials stay readable. */}
@@ -25,7 +27,11 @@ export async function UserMenu() {
       </span>
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-medium text-sidebar-foreground">{name}</p>
-        {user && <p className="truncate text-xs text-sidebar-muted">{ROLE_LABEL[user.role]}</p>}
+        {detail && (
+          <p className="truncate text-xs text-sidebar-muted" title={detail}>
+            {detail}
+          </p>
+        )}
       </div>
       <ThemeToggle className={ICON_BUTTON} />
       {user && (

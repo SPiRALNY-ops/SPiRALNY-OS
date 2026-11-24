@@ -72,7 +72,7 @@ export function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
   return (
     <nav aria-label="Spiral OS tools" className="flex flex-col gap-0.5">
       {live.map(item)}
-      <p className="mt-6 mb-1.5 px-3 text-xs font-medium text-sidebar-muted">Coming in later steps</p>
+      <p className="mt-6 mb-1.5 px-3 text-xs font-medium text-sidebar-muted">Coming soon, in plan order</p>
       {later.map(item)}
     </nav>
   );

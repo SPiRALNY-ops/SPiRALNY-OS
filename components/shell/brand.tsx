@@ -14,7 +14,8 @@ export function BrandLogo({ width = 172, href = "/analytics" }: { width?: number
         width={width}
         height={Math.round((width * 698) / 2048)}
         loading="eager"
-        style={{ width, height: "auto" }}
+        // An exact box, with the logo fitted inside: no sub-pixel stretch, no layout shift.
+        style={{ width, height: Math.round((width * 698) / 2048), objectFit: "contain" }}
       />
       <span
         className="mt-2 flex items-center gap-2 text-[13px] font-semibold text-sidebar-muted"
@@ -30,7 +31,7 @@ export function BrandLogo({ width = 172, href = "/analytics" }: { width?: number
 export function BrandBar() {
   return (
     <Link href="/analytics" className="flex items-center gap-2.5 rounded-md focus-visible:outline-2 focus-visible:outline-ring">
-      <Image src="/brand/spiralny-logo@2x.png" alt="SPiRALNY Real Estate" width={94} height={32} loading="eager" className="h-8 w-auto" />
+      <Image src="/brand/spiralny-logo@2x.png" alt="SPiRALNY Real Estate" width={94} height={32} loading="eager" style={{ width: 94, height: 32, objectFit: "contain" }} />
       <span className="border-l border-sidebar-border pl-2.5 text-[13px] font-semibold text-sidebar-muted">
         Spiral OS
       </span>

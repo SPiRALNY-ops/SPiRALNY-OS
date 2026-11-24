@@ -1,7 +1,7 @@
 import { ArrowDownRight, ArrowRight, ArrowUpRight } from "lucide-react";
 import { formatPercent, percentChange } from "@/lib/format";
 import { cn } from "@/lib/utils";
-import { InfoTip } from "./info-tip";
+import { TipLabel } from "./info-tip";
 
 /**
  * A change against the period before. `goodWhen` says which direction is good
@@ -81,14 +81,30 @@ export function Stat({
   sub?: React.ReactNode;
   className?: string;
 }) {
+  // Phones: a row (label, change and note on the left; the figure on the right), like the
+  // number list at the top. Wider: label over figure. The figure spans the row's lines.
+  const lines = 1 + (change ? 1 : 0) + (sub ? 1 : 0);
   return (
-    <div className={cn("flex min-w-0 flex-col gap-1", className)}>
-      <p className="text-sm font-medium text-muted-foreground">
-        {label} {info && <InfoTip label={label}>{info}</InfoTip>}
+    <div
+      className={cn(
+        "grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-0.5 py-3 first:pt-0 last:pb-0 sm:flex sm:flex-col sm:items-stretch sm:gap-1 sm:py-0",
+        className,
+      )}
+    >
+      <p className="col-start-1 text-sm font-medium text-muted-foreground">
+        <TipLabel label={label} info={info} />
       </p>
-      <p className="text-[1.6rem] leading-tight font-semibold tracking-tight">{value}</p>
-      {change}
-      {sub && <p className="text-xs text-muted-foreground">{sub}</p>}
+      <p
+        className="col-start-2 row-start-1 text-right text-xl leading-tight font-semibold tracking-tight sm:text-left sm:text-[1.6rem]"
+        style={{ gridRowEnd: `span ${lines}` }}
+      >
+        {value}
+      </p>
+      {change && <div className="col-start-1">{change}</div>}
+      {sub && <p className="col-start-1 text-xs text-muted-foreground">{sub}</p>}
     </div>
   );
 }
+
+/** The grid that holds Stats: rows split by hairlines on phones, two columns, then four once labels fit on one line. */
+export const STAT_GRID = "grid grid-cols-1 divide-y sm:grid-cols-2 sm:gap-x-6 sm:gap-y-5 sm:divide-y-0 xl:grid-cols-4";

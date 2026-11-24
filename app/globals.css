@@ -215,6 +215,23 @@
     --chart-5: #898781;
   }
 
+  /* A sideways-scrolling row fades at the edge that hides more (see useEdgeFade). */
+  .fade-r {
+    mask-image: linear-gradient(to right, #000 calc(100% - 36px), transparent);
+  }
+  .fade-l {
+    mask-image: linear-gradient(to left, #000 calc(100% - 36px), transparent);
+  }
+  .fade-x {
+    mask-image: linear-gradient(to right, transparent, #000 36px, #000 calc(100% - 36px), transparent);
+  }
+  .no-scrollbar {
+    scrollbar-width: none;
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+
   /* spiralny.com's heading style: bold, with a thick orange rule underneath. */
   .brand-underline {
     display: inline-block;

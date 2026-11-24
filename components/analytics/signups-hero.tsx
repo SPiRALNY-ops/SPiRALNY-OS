@@ -1,5 +1,5 @@
 import type { Kpi, SourceBucket } from "@/lib/analytics/types";
-import { formatFull } from "@/lib/format";
+import { formatFull, wholePercents } from "@/lib/format";
 import { SampleBadge } from "./chart-parts";
 import { Delta } from "./kpi-tiles";
 import { SOURCE_SERIES } from "./series";
@@ -41,6 +41,8 @@ export function SignupsHero({
     const n = buckets.reduce((sum, b) => sum + b[s.key], 0);
     return { ...s, n, share: total ? n / total : 0 };
   });
+  // Whole percents that add up to 100, so the printed shares never read 101%.
+  const pcts = new Map(wholePercents(parts.map((p) => p.n)).map((v, i) => [parts[i].key, v]));
   const shown = parts.filter((p) => p.n > 0);
 
   return (
@@ -75,7 +77,7 @@ export function SignupsHero({
               className="mt-4 flex h-7 w-full gap-[2px]"
             >
               {shown.map((p) => {
-                const pct = Math.round(p.share * 100);
+                const pct = pcts.get(p.key) ?? 0;
                 return (
                   <div
                     key={p.key}

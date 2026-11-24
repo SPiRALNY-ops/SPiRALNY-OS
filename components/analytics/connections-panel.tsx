@@ -1,7 +1,7 @@
 import { CircleCheck, Clock, LoaderCircle, TriangleAlert } from "lucide-react";
 import { disconnectGoogle, syncNow } from "@/app/(os)/analytics/actions";
 import { Button } from "@/components/ui/button";
-import { formatFull, relativeTime } from "@/lib/format";
+import { plural, relativeTime } from "@/lib/format";
 import type { ConnectionsStatus, LastRun } from "@/lib/sync/server";
 import type { SyncSource } from "@/lib/sync/types";
 import { DisconnectButton, RefreshWhileRunning, SyncNowButton } from "./connections-controls";
@@ -123,7 +123,7 @@ function describe(readiness: { ready: boolean; reason?: string }, run: LastRun |
     case "running":
       return "Syncing now…";
     case "success":
-      return `Synced ${when}: ${formatFull(run.rows)} rows.${run.message ? ` ${run.message}` : ""}`;
+      return `Synced ${when}: ${plural(run.rows, "row", "rows")}.${run.message ? ` ${run.message}` : ""}`;
     case "skipped":
       return `Checked ${when}: ${run.message ?? "nothing to show yet."} Sample data stays on until real data arrives.`;
     case "error":

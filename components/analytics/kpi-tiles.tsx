@@ -1,7 +1,7 @@
 import type { Kpi, KpiKey } from "@/lib/analytics/types";
 import { formatCount, formatFull } from "@/lib/format";
 import { SampleBadge } from "./chart-parts";
-import { InfoTip } from "./info-tip";
+import { TipLabel } from "./info-tip";
 import { Sparkline } from "./sparkline";
 import { Change } from "./stat";
 
@@ -55,23 +55,31 @@ export function KpiStrip({ kpis, periodLabel }: { kpis: Kpi[]; periodLabel: stri
         {allSample && <SampleBadge />}
       </div>
       <div className="overflow-hidden rounded-xl border bg-border shadow-xs">
-        <dl className="grid grid-cols-2 gap-px lg:grid-cols-5">
+        {/* Phones: one row per number (label and change, trend, figure), like a watch list.
+            Wider: tiles split by hairlines. The DOM order is the tile order; the grid places the row. */}
+        <dl className="grid grid-cols-1 gap-px sm:grid-cols-2 xl:grid-cols-5">
           {kpis.map((kpi) => (
-            <div key={kpi.key} className="flex min-w-0 flex-col bg-card p-4 max-lg:last:odd:col-span-2 sm:p-5">
-              <dt className="text-sm font-medium text-muted-foreground">
-                {kpi.label} <InfoTip label={kpi.label}>{KPI_INFO[kpi.key]}</InfoTip>
+            <div
+              key={kpi.key}
+              className="grid min-w-0 grid-cols-[minmax(0,1fr)_4.5rem_minmax(3.25rem,auto)] items-center gap-x-3 gap-y-0.5 bg-card px-4 py-3.5 sm:flex sm:flex-col sm:items-stretch sm:gap-0 sm:p-5 sm:max-xl:last:odd:col-span-2"
+            >
+              <dt className="col-start-1 row-start-1 text-sm font-medium text-muted-foreground">
+                <TipLabel label={kpi.label} info={KPI_INFO[kpi.key]} />
               </dt>
-              <dd className="mt-1 text-[1.75rem] leading-tight font-semibold tracking-tight" title={formatFull(kpi.value)}>
+              <dd
+                className="col-start-3 row-span-2 row-start-1 text-right text-2xl leading-tight font-semibold tracking-tight sm:mt-1 sm:text-left sm:text-[1.75rem]"
+                title={formatFull(kpi.value)}
+              >
                 {formatCount(kpi.value)}
               </dd>
-              <dd className="mt-1">
+              <dd className="col-start-1 row-start-2 sm:mt-1">
                 <Delta kpi={kpi} />
               </dd>
-              <dd className="mt-4">
-                <Sparkline values={kpi.trend} className="h-8 w-full pr-1" />
+              <dd className="col-start-2 row-span-2 row-start-1 sm:mt-4">
+                <Sparkline values={kpi.trend} className="h-8 w-full sm:pr-1" />
               </dd>
               {!allSample && kpi.origin === "sample" && (
-                <dd className="mt-3">
+                <dd className="col-span-3 row-start-3 mt-2 sm:mt-3">
                   <SampleBadge />
                 </dd>
               )}

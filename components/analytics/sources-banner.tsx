@@ -37,15 +37,20 @@ export function SourcesBanner({ sources }: { sources: SourceStatus[] }) {
     );
   }
 
+  const allLive = live.length === sources.length;
   return (
     <section aria-label="Data sources" className="flex flex-wrap items-center gap-x-4 gap-y-2.5 rounded-xl border bg-card px-4 py-3 shadow-xs">
-      <p className="text-sm">
-        <span className="font-semibold">
-          Live data from {live.length} of {sources.length} sources
+      <p className="flex items-start gap-2 text-sm">
+        {allLive && <CircleCheck aria-hidden className="mt-0.5 size-4 shrink-0 text-good md:hidden" />}
+        <span>
+          <span className="font-semibold">
+            {allLive ? `Live data from all ${sources.length} sources` : `Live data from ${live.length} of ${sources.length} sources`}
+          </span>
+          {latest && <span className="text-muted-foreground">, updated {relativeTime(latest)}</span>}
         </span>
-        {latest && <span className="text-muted-foreground">, updated {relativeTime(latest)}</span>}
       </p>
-      <ul className="flex flex-wrap gap-1.5">
+      {/* With everything live the chips only repeat the sentence, so phones skip them. */}
+      <ul className={cn("flex-wrap gap-1.5", allLive ? "hidden md:flex" : "flex")}>
         {sources.map((s) => {
           const real = s.origin === "real";
           return (

@@ -1,31 +1,69 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { ChevronDown, LoaderCircle } from "lucide-react";
 import { RANGE_KEYS, RANGES } from "@/lib/analytics/range";
 import type { RangeKey } from "@/lib/analytics/types";
 import { cn } from "@/lib/utils";
+import { useEdgeFade } from "./scroll-row";
 
 export type Chapter = { id: string; label: string };
 
-/** Highlights the chapter whose heading was passed most recently while scrolling. */
+/**
+ * The chapter being read: the last one whose top has passed a line just under
+ * the sticky bars (or the last chapter, once the page can't scroll further).
+ * After a chapter link is pressed, that chapter stays lit until the scroll settles.
+ */
 function useActiveChapter(ids: string[]) {
+  const key = ids.join(",");
   const [active, setActive] = useState(ids[0]);
+  const locked = useRef(false);
+  const settle = useRef<number | undefined>(undefined);
+
   useEffect(() => {
-    const els = ids.map((id) => document.getElementById(id)).filter((el): el is HTMLElement => Boolean(el));
-    if (!els.length) return;
-    const observer = new IntersectionObserver(
-      (entries) => {
-        const visible = entries.filter((e) => e.isIntersecting).sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top);
-        if (visible[0]) setActive(visible[0].target.id);
-      },
-      { rootMargin: "-120px 0px -60% 0px" },
-    );
-    els.forEach((el) => observer.observe(el));
-    return () => observer.disconnect();
-  }, [ids]);
-  return [active, setActive] as const;
+    const list = key.split(",");
+    let frame = 0;
+    const update = () => {
+      frame = 0;
+      if (locked.current) return;
+      const els = list.map((id) => document.getElementById(id)).filter((el): el is HTMLElement => Boolean(el));
+      if (!els.length) return;
+      const line = Math.min(window.innerHeight * 0.35, 220);
+      let current = els[0].id;
+      for (const el of els) if (el.getBoundingClientRect().top <= line) current = el.id;
+      const last = els[els.length - 1];
+      const atBottom = window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 4;
+      if (atBottom && last.getBoundingClientRect().top < window.innerHeight) current = last.id;
+      setActive(current);
+    };
+    const onScroll = () => {
+      window.clearTimeout(settle.current);
+      settle.current = window.setTimeout(() => {
+        locked.current = false;
+        update();
+      }, 140);
+      if (!frame) frame = requestAnimationFrame(update);
+    };
+    update();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("resize", onScroll);
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      window.removeEventListener("resize", onScroll);
+      cancelAnimationFrame(frame);
+      window.clearTimeout(settle.current);
+    };
+  }, [key]);
+
+  const choose = useCallback((id: string) => {
+    locked.current = true;
+    setActive(id);
+    // If the page doesn't need to scroll, nothing would unlock it.
+    window.clearTimeout(settle.current);
+    settle.current = window.setTimeout(() => (locked.current = false), 1200);
+  }, []);
+  return [active, choose] as const;
 }
 
 /**
@@ -46,6 +84,16 @@ export function RangeFrame({
   const pathname = usePathname();
   const [pending, startTransition] = useTransition();
   const [active, setActive] = useActiveChapter(chapters.map((c) => c.id));
+  const [navRef, fadeClass] = useEdgeFade<HTMLElement>();
+
+  // Keep the lit chapter link in view when the row scrolls sideways (phones).
+  useEffect(() => {
+    const nav = navRef.current;
+    const link = nav?.querySelector<HTMLElement>("[aria-current]");
+    if (!nav || !link || nav.scrollWidth <= nav.clientWidth) return;
+    const left = link.offsetLeft - (nav.clientWidth - link.offsetWidth) / 2;
+    nav.scrollTo({ left: Math.max(0, left), behavior: "smooth" });
+  }, [active, navRef]);
 
   const choose = (key: RangeKey) => {
     if (key === current) return;
@@ -61,9 +109,9 @@ export function RangeFrame({
 
   return (
     <div className="flex flex-col gap-5">
-      <div className="sticky top-14 z-20 -mx-4 border-b bg-background/90 px-4 py-2.5 backdrop-blur supports-[backdrop-filter]:bg-background/75 sm:-mx-6 sm:px-6 lg:top-0 lg:-mx-10 lg:px-10">
+      <div className="sticky top-14 z-20 -mx-4 border-b bg-background px-4 py-2.5 sm:-mx-6 sm:px-6 lg:top-0 lg:-mx-10 lg:px-10">
         <div className="flex items-center gap-3">
-          <nav aria-label="Analytics sections" className="-my-1 min-w-0 flex-1 overflow-x-auto py-1">
+          <nav ref={navRef} aria-label="Analytics sections" className={cn("no-scrollbar -my-1 min-w-0 flex-1 overflow-x-auto py-1", fadeClass)}>
             <ul className="flex gap-1">
               {chapters.map((c) => (
                 <li key={c.id}>

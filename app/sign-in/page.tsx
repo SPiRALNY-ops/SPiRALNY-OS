@@ -18,7 +18,11 @@ export default function SignInPage() {
             alt="SPiRALNY Real Estate"
             width={200}
             height={68}
+            // The logo is this page's largest paint: fetch it first, and let `sizes` pick a ~400px file on a
+            // phone instead of the 640px one the default 1x/2x srcset jumps to.
             loading="eager"
+            fetchPriority="high"
+            sizes="200px"
             style={{ width: 200, height: 68, objectFit: "contain" }}
           />
           <p className="mt-3 text-sm font-semibold text-sidebar-muted">Spiral OS</p>

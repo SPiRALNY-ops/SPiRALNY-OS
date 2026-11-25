@@ -355,12 +355,14 @@ export async function campaignRows(db: Db, p: Period, tz: string, withLeads: boo
   const matched = new Map<string, { leads: number; signups: number }>();
   if (withLeads) {
     const rows = await db.query<{ campaign_id: string; leads: number; signups: number }>(
+      // Only people whose source is cold email (the funnel's rule), so a lead who came another way and
+      // was added to a campaign afterwards doesn't count as that campaign's lead.
       `with ev as (${EVENTS})
        select il.campaign_id, count(distinct ev.who)::int as leads,
               count(distinct ev.who) filter (where ev.signup)::int as signups
          from ev
          join spiral.instantly_leads il on lower(il.email) = ev.email
-        where ev.day between $1::date and $2::date
+        where ev.day between $1::date and $2::date and ev.source = 'cold_email'
         group by il.campaign_id`,
       [p.start, p.end, tz],
     );

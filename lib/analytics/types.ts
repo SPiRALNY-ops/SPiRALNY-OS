@@ -38,6 +38,8 @@ export type Kpi = {
   value: number;
   /** null = the source has no data that far back, so there is nothing fair to compare with. */
   previous: number | null;
+  /** The first day the source has data, when that falls inside the period (the value only counts from then). */
+  since?: string;
   /** One value per bucket of the range (the tile's small trend line). null = no data recorded for that stretch yet. */
   trend: (number | null)[];
   origin: Origin;

@@ -52,6 +52,26 @@ function NotConnected({ icon: Icon, title, body, needs }: { icon: typeof Clock3;
   );
 }
 
+/** "2026-11-20" -> "Nov 20" (a New York calendar day, read at UTC noon so it never shifts). */
+const shortDate = (day: string) =>
+  new Date(`${day}T12:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
+
+/** What the Pages table holds, and from when each column counts. */
+function pagesDescription(view: AnalyticsView): string {
+  const parts = ["The 50 pages Google sent the most people to."];
+  if (view.pages.origin === "real") {
+    const { ga4, forms } = view.coverage;
+    if (view.website.origin === "real" && ga4 && ga4 > view.range.start)
+      parts.push(`Visits count from ${shortDate(ga4)}, when Google Analytics started recording.`);
+    if (forms)
+      parts.push(
+        `Leads and sign-ups are website form entries${forms > view.range.start ? `, counted from ${shortDate(forms)}` : ""}; the lead sheet doesn't record a page.`,
+      );
+  }
+  parts.push("Filter by type, sort any column, and open a page to see its searches.");
+  return parts.join(" ");
+}
+
 export function AnalyticsDashboard({ view }: { view: AnalyticsView }) {
   const period = view.range.label.replace(/^Last /, "").toLowerCase();
   const kpi = (key: KpiKey) => view.kpis.find((k) => k.key === key)!;
@@ -113,11 +133,7 @@ export function AnalyticsDashboard({ view }: { view: AnalyticsView }) {
         <PageMix pages={view.pages} siteClicks={view.searches.totals.clicks} />
         <Section
           title="Pages"
-          description={
-            view.website.origin === "real" && view.coverage.ga4 && view.coverage.ga4 > view.range.start
-              ? `Pages Google sent people to. Visits only count from ${new Date(`${view.coverage.ga4}T12:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" })}, when Google Analytics started recording. Filter by type, sort any column, and open a page to see its searches.`
-              : "Pages Google sent people to, with their visits. Filter by type, sort any column, and open a page to see the searches behind it."
-          }
+          description={pagesDescription(view)}
           sample={view.pages.origin === "sample"}
           footer="Google doesn't share what each visitor searched, so searches are shown per page, not per person."
         >

@@ -176,21 +176,24 @@ function fakeApis(world: World): Fetch {
     }
     if (url.pathname === "/api/v2/leads/list") {
       const { contacts } = JSON.parse(body) as { contacts: string[] };
-      const items = contacts.includes("jane@example.com")
-        ? [
-            {
-              id: "lead-1",
-              email: "jane@example.com",
-              campaign: "camp-1",
-              status: 1,
-              lt_interest_status: 1,
-              timestamp_created: "2026-11-01T09:00:00.000Z",
-              timestamp_last_contact: "2026-11-02T14:00:00.000Z",
-              timestamp_last_reply: "2026-11-03T16:00:00.000Z",
-            },
-          ]
-        : [];
-      return json({ items });
+      const lead = (id: string, email: string, created: string, lastContact: string) => ({
+        id,
+        email,
+        campaign: "camp-1",
+        status: 1,
+        lt_interest_status: 1,
+        timestamp_created: created,
+        timestamp_last_contact: lastContact,
+        timestamp_last_reply: null,
+      });
+      const known = [
+        { ...lead("lead-1", "jane@example.com", "2026-11-01T09:00:00.000Z", "2026-11-02T14:00:00.000Z"), timestamp_last_reply: "2026-11-03T16:00:00.000Z" },
+        // Sam reached the SIGNED! tab on Nov 14 after being emailed by this campaign: cold email.
+        lead("lead-2", "sam@example.com", "2026-11-05T09:00:00.000Z", "2026-11-06T14:00:00.000Z"),
+        // Pat came from Google (the sheet says so) and was added to the campaign too: stays Google.
+        lead("lead-3", "pat@example.com", "2026-11-01T09:00:00.000Z", "2026-11-02T14:00:00.000Z"),
+      ];
+      return json({ items: known.filter((l) => contacts.includes(l.email)) });
     }
     throw new Error(`Unexpected request: ${url.href}`);
   };
@@ -260,7 +263,8 @@ describe("daily sync", () => {
       { email: "jane@example.com", stage: "signed", source: "cold_email", source_detail: "NYC agents — 100% split" },
       { email: "lee@example.com", stage: "new", source: "cold_email", source_detail: "Lead sheet: Instantly" },
       { email: "pat@example.com", stage: "new", source: "google", source_detail: "Lead sheet: FWD/FRESH" },
-      { email: "sam@example.com", stage: "signed", source: "lead_sheet", source_detail: null },
+      // Sam came in through the lead sheet with no source; Instantly emailed Sam first, so cold email.
+      { email: "sam@example.com", stage: "signed", source: "cold_email", source_detail: "NYC agents — 100% split" },
     ]);
     // The undated row is kept but counts nowhere; the empty row is dropped.
     expect(await db.query("select * from spiral.lead_sheet_rows")).toHaveLength(5);
@@ -285,7 +289,7 @@ describe("daily sync", () => {
       (t, b) => ({ google: t.google + b.google, cold: t.cold + b.cold_email, unknown: t.unknown + b.unknown }),
       { google: 0, cold: 0, unknown: 0 },
     );
-    expect(leadTotals).toEqual({ google: 1, cold: 2, unknown: 2 });
+    expect(leadTotals).toEqual({ google: 1, cold: 3, unknown: 1 });
     const brooklyn = view.pages.rows.find((r) => r.path === "/brooklyn-100-commission-brokerage/");
     expect(brooklyn).toMatchObject({ visits: 30, googleClicks: 5, leads: 1, signups: 1 });
     // Cold email funnel from Instantly's overview; meetings and won hidden while unused.
@@ -311,10 +315,14 @@ describe("daily sync", () => {
 
     // Data only goes back to early November here, so nothing is compared with the period before.
     expect(view.kpis.every((k) => k.previous === null)).toBe(true);
+    // ...and each number says the day it starts counting from, since that falls inside the 28 days.
+    expect(view.kpis.every((k) => Boolean(k.since && k.since > view.range.start && k.since <= view.range.end))).toBe(true);
     expect(view.searches.previous).toBeNull();
 
+    // Jane and Sam are this campaign's leads and sign-ups. Pat is on its list but came from Google,
+    // and Lee is cold email from the sheet's Instantly tab with no campaign: neither counts here.
     expect(view.coldEmail.rows).toEqual([
-      expect.objectContaining({ id: "camp-1", sent: 410, replies: 9, interested: 2, contacted: 0, bounced: 0, leads: 1, signups: 1 }),
+      expect.objectContaining({ id: "camp-1", sent: 410, replies: 9, interested: 2, contacted: 0, bounced: 0, leads: 2, signups: 2 }),
     ]);
   });
 

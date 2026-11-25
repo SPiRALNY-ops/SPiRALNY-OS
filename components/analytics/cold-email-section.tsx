@@ -1,6 +1,6 @@
 import { ChevronRight } from "lucide-react";
 import type { AnalyticsView, EmailStepRow } from "@/lib/analytics/types";
-import { formatFull, formatPercent } from "@/lib/format";
+import { formatFull, formatPercent, listOf } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { SampleBadge } from "./chart-parts";
 import { TipLabel } from "./info-tip";
@@ -139,6 +139,26 @@ function rowsOf(steps: StepTotals[]) {
   });
 }
 
+/** A "best reply rate" needs volume behind it: 1 reply from 7 emails is luck, not a finding. */
+const MIN_SENT = 100;
+
+/**
+ * The rows whose reply rate reads the same as the best one, as shown (0.5% and 0.5% are a tie to the
+ * reader), among rows with at least MIN_SENT emails sent. `filtered` = a smaller row had a higher rate.
+ */
+function bestByRate<T extends { sent: number; replies: number }>(rows: T[]) {
+  const replying = rows.filter((r) => r.sent > 0 && r.replies > 0);
+  const big = replying.filter((r) => r.sent >= MIN_SENT);
+  const pool = big.length ? big : replying;
+  const top = Math.max(0, ...pool.map((r) => r.replies / r.sent));
+  const text = formatPercent(top, 1);
+  return {
+    leaders: pool.filter((r) => formatPercent(r.replies / r.sent, 1) === text),
+    text,
+    filtered: big.length > 0 && replying.some((r) => r.sent < MIN_SENT && r.replies / r.sent > top),
+  };
+}
+
 /** Which email in the sequences gets replies (all campaigns together), A/B variants listed under their email. */
 export function EmailSteps({ cold }: { cold: Cold }) {
   const byStep = new Map<number, EmailStepRow[]>();
@@ -154,14 +174,18 @@ export function EmailSteps({ cold }: { cold: Cold }) {
     }));
   const rate = (r: { sent: number; replies: number }) => (r.sent ? r.replies / r.sent : 0);
   const maxRate = Math.max(...steps.map(rate), 0);
-  const best = [...steps].sort((a, b) => rate(b) - rate(a))[0];
+  const best = bestByRate(steps);
+  const leaders = best.leaders.map((s) => String(s.step + 1));
+  const among = best.filtered ? ` (emails sent ${MIN_SENT} times or more)` : "";
   return (
     <Section
       title="Which email gets replies"
       description={
-        best && best.replies
-          ? `Email ${best.step + 1} gets the most replies for each email sent (${formatPercent(rate(best), 1)}), across all campaigns.`
-          : "Replies for each email in the sequences, all campaigns together."
+        leaders.length === 1
+          ? `Email ${leaders[0]} gets the most replies for each email sent (${best.text}), across all campaigns${among}.`
+          : leaders.length > 1
+            ? `Emails ${listOf(leaders)} get the most replies for each email sent (${best.text} each), across all campaigns${among}.`
+            : "Replies for each email in the sequences, all campaigns together."
       }
       sample={cold.origin === "sample"}
       footer="Reply rate here is replies per email sent at that step. Where a campaign tests versions of an email (A/B), they are counted together."
@@ -231,18 +255,21 @@ export function EmailSteps({ cold }: { cold: Cold }) {
 }
 
 export function CampaignsSection({ cold }: { cold: Cold }) {
-  const withSends = cold.rows.filter((r) => r.sent > 0);
-  const best = [...withSends].sort((a, b) => b.replies / b.sent - a.replies / a.sent)[0];
+  const best = bestByRate(cold.rows);
+  const leaders = best.leaders.map((r) => r.name);
+  const among = best.filtered ? ` among campaigns that sent ${MIN_SENT} or more emails` : "";
   return (
     <Section
       title="Campaigns"
       description={
-        best && best.sent
-          ? `${best.name} has the best reply rate (${formatPercent(best.replies / best.sent, 1)} of emails sent). Sort any column to compare.`
-          : "Each Instantly campaign in this period. Sort any column to compare."
+        leaders.length === 1
+          ? `${leaders[0]} has the best reply rate (${best.text} of emails sent)${among}. Sort any column to compare.`
+          : leaders.length > 1
+            ? `${listOf(leaders)} share the best reply rate (${best.text} of emails sent)${among}. Sort any column to compare.`
+            : "Each Instantly campaign in this period. Sort any column to compare."
       }
       sample={cold.origin === "sample"}
-      footer="A lead or sign-up counts toward a campaign when their email address is in that campaign's lead list."
+      footer="Became leads and Signed up count people whose source is cold email, under each campaign whose lead list has their email address. A few cold-email leads come from the lead sheet's Instantly tab without a campaign, so these columns can add up to less than the funnel above."
     >
       <CampaignsTable rows={cold.rows} />
     </Section>

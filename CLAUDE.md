@@ -44,6 +44,12 @@ See everything → Step 2 Onboarding → Step 3 AI calls → Step 4 Georgia and 
   days a source hasn't reported or recorded are gaps, never zeros; partial first/last months are labelled;
   rates use a denominator that means what it says (Instantly's "contacted" is a daily sum, so rates use
   emails sent; "new people emailed" is the unique count). Columns with no data yet are hidden, with a note.
+  A source that starts recording inside the period says "Counted since <day>" (`Kpi.since`). Finding
+  sentences name ties as shown (0.5% and 0.5% are a tie), and a "best rate" needs ≥100 emails sent behind it.
+- Attribution: "lead_sheet" and "unknown" are both "not known yet"; Instantly re-labels either as cold email
+  when the person was in a campaign and emailed before they first appeared. Campaign columns count only
+  cold-email people, so they never exceed the funnel.
+- Client hand-outs (user guide PDF, logins) live in gitignored `deliverables/`; the repo is public.
 
 ## Stack
 Next.js 16 (App Router, `cacheComponents` on) · React 19 · TypeScript · Tailwind v4 · shadcn/ui (Radix) ·

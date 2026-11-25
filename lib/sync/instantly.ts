@@ -263,7 +263,8 @@ export async function syncInstantly(ctx: SyncContext): Promise<SourceResult> {
     });
   }
 
-  // 5. Cold email = in a campaign and emailed, added before the person's first form entry.
+  // 5. Cold email = in a campaign and emailed, added before the person first appeared (form or lead sheet).
+  //    "lead_sheet" is a placeholder source (came in through the sheet, origin not known), like "unknown".
   await db.query(
     `update spiral.people p
         set source = 'cold_email', source_detail = m.campaign_name, updated_at = now()
@@ -275,7 +276,7 @@ export async function syncInstantly(ctx: SyncContext): Promise<SourceResult> {
           order by lower(il.email), il.created_at
        ) m
       where lower(p.email) = m.email
-        and p.source in ('unknown', 'website')
+        and p.source in ('unknown', 'website', 'lead_sheet')
         and (m.created_at is null or m.created_at <= p.first_seen_at)`,
   );
 

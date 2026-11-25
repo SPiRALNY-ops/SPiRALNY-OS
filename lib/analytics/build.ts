@@ -168,7 +168,16 @@ export async function buildAnalytics(
       trend = sumIntoBuckets(range, instantlyKpi[2]);
     }
     const coverageKey = isLeadCount ? "leads" : meta.source;
-    kpis.push({ ...meta, value, previous: comparable(coverageKey) ? before : null, trend: withGaps(trend, coverageKey), origin: "real" });
+    const first = coverage[coverageKey];
+    kpis.push({
+      ...meta,
+      value,
+      previous: comparable(coverageKey) ? before : null,
+      // A source that started recording inside the period only counts from that day: say so.
+      ...(first && first > range.start ? { since: first } : {}),
+      trend: withGaps(trend, coverageKey),
+      origin: "real",
+    });
   }
 
   const plans = planRows

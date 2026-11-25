@@ -1,5 +1,6 @@
 import type { Kpi, KpiKey } from "@/lib/analytics/types";
 import { formatCount, formatFull } from "@/lib/format";
+import { cn } from "@/lib/utils";
 import { SampleBadge } from "./chart-parts";
 import { TipLabel } from "./info-tip";
 import { Sparkline } from "./sparkline";
@@ -25,9 +26,18 @@ export const KPI_INFO: Record<KpiKey, string> = {
   replies: "People who replied to a cold email in Instantly, each counted once. Out-of-office replies are left out.",
 };
 
+/** "2026-11-20" -> "Nov 20" (the date is a New York calendar day, so it is read as UTC noon). */
+function shortDate(day: string): string {
+  return new Date(`${day}T12:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
+}
+
 /** Change against the previous period, coloured by whether the move is good news. */
 export function Delta({ kpi, inverse = false, suffix }: { kpi: Kpi; inverse?: boolean; suffix?: string }) {
   const good = UP_IS_GOOD[kpi.key];
+  // The source only started recording inside this period: the figure counts from that day, with nothing before it.
+  if (kpi.previous === null && kpi.since) {
+    return <p className={cn("text-xs", inverse ? "text-sidebar-muted" : "text-muted-foreground")}>Counted since {shortDate(kpi.since)}</p>;
+  }
   return (
     <Change
       value={kpi.value}

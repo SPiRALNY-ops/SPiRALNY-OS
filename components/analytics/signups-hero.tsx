@@ -11,7 +11,11 @@ function insight(parts: Part[], total: number, periodLabel: string): string {
   if (total === 0) return `No completed sign-ups in the last ${periodLabel} yet.`;
   const ranked = [...parts].sort((a, b) => b.n - a.n);
   const [top, next] = ranked;
-  if (top.key === "unknown") return "Most of them can't be traced to a source yet.";
+  if (top.key === "unknown") {
+    if (top.n === total) return total === 1 ? "It can't be traced to a source yet." : "None of them can be traced to a source yet.";
+    if (top.n * 2 > total) return "Most of them can't be traced to a source yet.";
+    return `${formatFull(top.n)} of ${formatFull(total)} can't be traced to a source yet.`;
+  }
   if (next && next.n === top.n && next.key !== "unknown") {
     return `${top.label} and ${next.label.toLowerCase()} brought the most, ${formatFull(top.n)} each.`;
   }

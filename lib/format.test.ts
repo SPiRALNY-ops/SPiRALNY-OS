@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatShare, plural, wholePercents } from "./format";
+import { formatShare, listOf, plural, wholePercents } from "./format";
 
 describe("formatShare", () => {
   it("never shows a real, tiny share as 0%", () => {
@@ -29,5 +29,14 @@ describe("plural", () => {
     expect(plural(1, "row", "rows")).toBe("1 row");
     expect(plural(0, "row", "rows")).toBe("0 rows");
     expect(plural(1415, "row", "rows")).toBe("1,415 rows");
+  });
+});
+
+describe("listOf", () => {
+  it("joins names the way a sentence does", () => {
+    expect(listOf([])).toBe("");
+    expect(listOf(["Email 4"])).toBe("Email 4");
+    expect(listOf(["1", "4"])).toBe("1 and 4");
+    expect(listOf(["A", "B", "C"])).toBe("A, B and C");
   });
 });

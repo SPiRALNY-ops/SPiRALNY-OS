@@ -1,5 +1,5 @@
 import type { AnalyticsView } from "@/lib/analytics/types";
-import { formatFull } from "@/lib/format";
+import { formatFull, listOf } from "@/lib/format";
 import { BarList } from "./bar-list";
 import { Section } from "./section";
 
@@ -7,20 +7,36 @@ export function Count({ n }: { n: number }) {
   return <span className="ml-1.5 rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground tabular">{formatFull(n)}</span>;
 }
 
-const top = (rows: { label: string; value: number; key: string }[]) => rows.filter((r) => r.key !== "none").sort((a, b) => b.value - a.value)[0];
+/** The plans with the highest count (ties included, "Not stated" left out). */
+function leaders(rows: { label: string; value: number; key: string }[]): string[] {
+  const known = rows.filter((r) => r.key !== "none" && r.value > 0);
+  const max = Math.max(0, ...known.map((r) => r.value));
+  return known.filter((r) => r.value === max).map((r) => r.label);
+}
 
 /** Which plans agents chose, and which plans leads asked about. */
 export function PlansCard({ plans, periodLabel }: { plans: AnalyticsView["plans"]; periodLabel: string }) {
   const joined = plans.joined.reduce((s, r) => s + r.value, 0);
   const asked = plans.asked.reduce((s, r) => s + r.value, 0);
-  const topJoined = top(plans.joined);
-  const topAsked = top(plans.asked);
+  const topJoined = leaders(plans.joined);
+  const topAsked = leaders(plans.asked);
+  const chose = topJoined.length
+    ? topJoined.length === 1
+      ? `${topJoined[0]} is the plan most agents chose in the last ${periodLabel}`
+      : `${listOf(topJoined)} were chosen equally often in the last ${periodLabel}`
+    : "";
+  const askedAbout = topAsked.length
+    ? topAsked.length === 1
+      ? `leads asked most about ${topAsked[0]}`
+      : `leads asked equally about ${listOf(topAsked)}`
+    : "";
+  const finding = [chose, askedAbout].filter(Boolean).join("; ");
   return (
     <Section
       title="Plans"
       description={
-        topJoined && topJoined.value
-          ? `${topJoined.label} is the plan most agents chose in the last ${periodLabel}${topAsked && topAsked.value ? `; leads asked most about ${topAsked.label}` : ""}.`
+        finding
+          ? `${finding.charAt(0).toUpperCase()}${finding.slice(1)}.`
           : "Which plan agents joined on, and which plan leads asked about."
       }
       sample={plans.origin === "sample"}
@@ -54,7 +70,7 @@ export function LeadStatusCard({ status }: { status: AnalyticsView["leadStatus"]
     n("following") && `${formatFull(n("following"))} ${n("following") === 1 ? "is" : "are"} being followed up`,
     n("not") && `${formatFull(n("not"))} said no`,
   ].filter(Boolean) as string[];
-  const sentence = parts.length > 1 ? `${parts.slice(0, -1).join(", ")} and ${parts.at(-1)}` : parts[0];
+  const sentence = listOf(parts);
   return (
     <Section
       title="Where these leads stand"

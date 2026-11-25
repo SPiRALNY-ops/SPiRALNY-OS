@@ -76,7 +76,7 @@ export function WebsiteSection({
             : "How each visit reached spiralny.com."
         }
         sample={sample}
-        footer="Direct: typed the address, a bookmark, or an app that hides where it came from. Organic Search: Google or another search engine. Organic Social: social media. Referral: a link on another site. Unassigned: Google couldn't tell."
+        footer="Direct: typed the address, a bookmark, or an app that hides where it came from. Organic Search: Google or another search engine. Organic Social: social media. Referral: a link on another site. Unassigned: Google couldn't tell. Google Analytics estimates visit counts, so the groups can add up to a few more or fewer than the total."
       >
         <BarList items={website.channels} label="Visits by channel" valueSuffix={["visit", "visits"]} />
       </Section>

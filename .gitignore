@@ -43,3 +43,6 @@ next-env.d.ts
 # local embedded database
 /.data/
 !.env.example
+
+# client hand-outs (they hold logins and client numbers; the repo is public)
+/deliverables/

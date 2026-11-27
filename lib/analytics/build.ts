@@ -170,7 +170,7 @@ export async function buildAnalytics(
       [value, before] = instantlyKpi;
       trend = sumIntoBuckets(range, instantlyKpi[2]);
     }
-    const coverageKey = isLeadCount ? "leads" : meta.source;
+    const coverageKey = meta.key === "signups" ? "signups" : isLeadCount ? "leads" : meta.source;
     const first = coverage[coverageKey];
     kpis.push({
       ...meta,

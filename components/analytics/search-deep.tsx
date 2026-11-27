@@ -223,7 +223,7 @@ export function RecruitingPagesTrend({ search }: { search: NonNullable<LongView[
       <Section
         title="Recruiting pages over time"
         sample={false}
-        description="Google clicks on the recruiting pages that get the most, month by month for 16 months. The period picker doesn't change this."
+        description="Google clicks on the recruiting pages that get the most, month by month for 16 months."
         footer={`"Last 3 months" are the last three complete months (${label(last3)}), against the three before (${label(prev3)}).`}
       >
         {search.recruitingPages.length ? (

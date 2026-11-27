@@ -36,6 +36,11 @@ export async function proxy(request: NextRequest) {
   const isSignIn = request.nextUrl.pathname.startsWith("/sign-in");
 
   if (!signedIn && !isSignIn) {
+    // Data the page fetches in the background (the detail panel) answers plainly instead of redirecting,
+    // so the page can say "sign in again" rather than trying to read the sign-in page as data.
+    if (request.nextUrl.pathname.startsWith("/api/analytics/")) {
+      return copyAuth(response, NextResponse.json({ error: "Sign in to see this." }, { status: 401 }));
+    }
     const target = request.nextUrl.clone();
     target.pathname = "/sign-in";
     target.search = "";

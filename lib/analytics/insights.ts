@@ -38,6 +38,15 @@ export const THRESHOLDS = {
 } as const;
 
 const SEVERITY_ORDER: Severity[] = ["fix", "watch", "opportunity", "good"];
+
+/** "in the last 28 days", or "since Nov 20" when Google Analytics started recording inside the period. */
+export function websiteWhen(view: AnalyticsView): string {
+  const since = view.coverage.ga4;
+  if (since && since > view.range.start) {
+    return `since ${new Date(`${since}T12:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" })}`;
+  }
+  return `in the last ${view.range.label.replace(/^Last /, "").toLowerCase()}`;
+}
 const pct = (n: number) => formatPercent(n, 0);
 
 export function findings(view: AnalyticsView, long: LongView): Finding[] {
@@ -171,7 +180,7 @@ export function findings(view: AnalyticsView, long: LongView): Finding[] {
         area: "website",
         severity: "good",
         title: `AI assistants sent ${formatFull(aiVisits)} ${aiVisits === 1 ? "visit" : "visits"}`,
-        detail: `${ai.map((a) => `${a.label} ${formatFull(a.sessions)}`).join(", ")} in the last ${period}: people asking an AI about brokerages are being pointed to spiralny.com.`,
+        detail: `${ai.map((a) => `${a.label} ${formatFull(a.sessions)}`).join(", ")} ${websiteWhen(view)}: people asking an AI about brokerages are being pointed to spiralny.com.`,
         href: "/analytics/website#sources",
       });
     }
@@ -186,7 +195,7 @@ export function findings(view: AnalyticsView, long: LongView): Finding[] {
         id: "cold-bounces",
         area: "cold",
         severity: rate >= THRESHOLDS.bounceFix ? "fix" : "watch",
-        title: `${pct(rate)} of cold emails bounced`,
+        title: `${formatPercent(rate, 1)} of cold emails bounced`,
         detail: `${formatFull(h.bounced)} of ${formatFull(h.sent)} in the last ${period}. Above ${pct(THRESHOLDS.bounceWatch)}, inbox providers start trusting the sending addresses less.`,
         href: "/analytics/cold-email#sending",
       });
@@ -206,7 +215,7 @@ export function findings(view: AnalyticsView, long: LongView): Finding[] {
           area: "cold",
           severity: "watch",
           title: `Cold email reply rate fell from ${formatPercent(bestRate, 1)} to ${formatPercent(lastRate, 1)}`,
-          detail: `${best.label} against ${last.label}: replies for each email sent, all campaigns together.`,
+          detail: `From ${best.label} to ${last.label}, the last complete month: replies for each email sent, all campaigns together.`,
           href: "/analytics/cold-email#trend",
         });
       }

@@ -21,7 +21,9 @@ export function PlansCard({ plans, periodLabel }: { plans: AnalyticsView["plans"
   const topJoined = leaders(plans.joined);
   const topAsked = leaders(plans.asked);
   const chose = topJoined.length
-    ? topJoined.length === 1
+    ? joined === 1
+      ? `The one agent who joined in the last ${periodLabel} chose ${topJoined[0]}`
+      : topJoined.length === 1
       ? `${topJoined[0]} is the plan most agents chose in the last ${periodLabel}`
       : `${listOf(topJoined)} were chosen equally often in the last ${periodLabel}`
     : "";

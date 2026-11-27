@@ -67,7 +67,8 @@ describe("deeper search numbers", () => {
 describe("findings", () => {
   const view = (over: Partial<Record<string, unknown>> = {}) =>
     ({
-      range: { key: "28d", label: "Last 28 days" },
+      range: { key: "28d", label: "Last 28 days", start: "2026-10-30" },
+      coverage: { ga4: "2026-11-20" },
       kpis: [
         { key: "signups", value: 8, previous: 8, origin: "real" },
         { key: "googleClicks", value: 400, previous: 520, origin: "real" },
@@ -117,6 +118,9 @@ describe("findings", () => {
       "good:website-ai",
     ]);
     expect(all.find((f) => f.id === "cold-reply-drop")!.title).toBe("Cold email reply rate fell from 2.3% to 1.0%");
+    expect(all.find((f) => f.id === "cold-bounces")!.title).toBe("6.0% of cold emails bounced");
+    // Google Analytics started inside the period: say since when, not "in the last 28 days".
+    expect(all.find((f) => f.id === "website-ai")!.detail).toContain("since Nov 20");
     expect(all.find((f) => f.id === "search-page-falling")!.href).toContain("item=page%3A%2Fpark-your-license-and-stay-active%2F");
   });
 
@@ -139,6 +143,19 @@ describe("findings", () => {
       { leads: null, cold: null } as unknown as LongView,
     );
     expect(calm).toEqual([]);
+  });
+});
+
+describe("coverage", () => {
+  it("dates sign-ups from the first sign-up, not the first lead", async () => {
+    const { coverage } = await import("./details");
+    await db.query(
+      `insert into spiral.lead_sheet_rows (tab, row_number, kind, day, email) values
+         ('FWD/FRESH', 2, 'lead', '2026-05-05', 'a@example.com'),
+         ('SIGNED!', 2, 'signup', '2026-07-27', 'b@example.com')`,
+    );
+    const c = await coverage(db, "America/New_York");
+    expect(c).toMatchObject({ leads: "2026-05-05", signups: "2026-07-27" });
   });
 });
 

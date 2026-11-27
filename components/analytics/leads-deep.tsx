@@ -34,7 +34,7 @@ export function SignupsByMonth({ leads }: { leads: Leads }) {
       title="Agents who joined, by month and plan"
       description={
         full.length
-          ? `About ${formatFull(Math.round(avg))} agents a month over the ${plural(full.length, "complete month", "complete months")} on record. The period picker doesn't change this.`
+          ? `About ${formatFull(Math.round(avg))} agents a month over the ${plural(full.length, "complete month", "complete months")} on record.`
           : "Agents who joined each month, by the plan they chose."
       }
       footer={`From the SIGNED! tab (it starts ${first ? first.label : "recently"}) and completed sign-up forms, each agent once. Months marked "so far" aren't over.`}
@@ -95,7 +95,7 @@ export function FollowUpBacklog({ leads }: { leads: Leads }) {
       <Section
         title="Where every lead stands today"
         sample={false}
-        description={`${formatFull(b.total)} leads on the sheet: ${formatFull(chasing)} still being followed up. The period picker doesn't change this.`}
+        description={`${formatFull(b.total)} leads on the sheet: ${formatFull(chasing)} still being followed up.`}
         footer={`From the Status column on the FWD/FRESH and Instantly tabs, as it reads today, including the ${formatFull(b.undated)} leads with no date. Each person once.`}
       >
         <BarList items={b.rows} label="Lead status today" />
@@ -151,7 +151,6 @@ export function SheetHealth({ leads }: { leads: Leads }) {
         title="Lead sheet check"
         sample={false}
         description="What's missing on the sheet. Each fix makes the numbers on this page more complete."
-        footer={leads.historyDays > 1 ? undefined : "From today, each lead's status is also saved daily, so changes in the pipeline can be shown after two weeks."}
       >
         <ul className="divide-y">
           {checks.map((c) => {

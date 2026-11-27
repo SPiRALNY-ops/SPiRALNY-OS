@@ -20,7 +20,12 @@ export async function coverage(db: Db, tz: string): Promise<Coverage> {
        (select min(day)::text from spiral.ga4_daily_site) as ga4,
        (select min(day)::text from spiral.instantly_campaign_daily) as instantly,
        (select min((received_at at time zone $1)::date)::text from spiral.form_entries) as forms,
-       (select min(day)::text from spiral.lead_sheet_rows) as lead_sheet`,
+       (select min(day)::text from spiral.lead_sheet_rows) as lead_sheet,
+       (select min(d)::text from (
+          select min(day) as d from spiral.lead_sheet_rows where kind = 'signup'
+          union all
+          select min((received_at at time zone $1)::date) from spiral.form_entries where entry_type = 'complete'
+        ) s) as signups`,
     [tz],
   );
   const out: Coverage = {};

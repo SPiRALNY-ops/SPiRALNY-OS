@@ -186,8 +186,10 @@ export function EmailSteps({ cold }: { cold: Cold }) {
       description={
         leaders.length === 1
           ? `Email ${leaders[0]} gets the most replies for each email sent (${best.text}), across all campaigns${among}.`
-          : leaders.length > 1
+          : leaders.length === 2
             ? `Emails ${listOf(leaders)} get the most replies for each email sent (${best.text} each), across all campaigns${among}.`
+            : leaders.length > 2
+              ? `Emails ${listOf(leaders)} all get about the same reply rate (${best.text}), across all campaigns${among}.`
             : "Replies for each email in the sequences, all campaigns together."
       }
       sample={cold.origin === "sample"}

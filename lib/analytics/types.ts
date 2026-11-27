@@ -94,7 +94,8 @@ export type FunnelStep = { key: string; label: string; value: number; note?: str
 export type EmailStepRow = { step: number; variant: number; sent: number; replies: number; opportunities: number };
 
 /** First day each source has data (YYYY-MM-DD); "leads" covers the forms and the lead sheet together. */
-export type Coverage = Partial<Record<SourceKey | "leads", string>>;
+/** "signups" is separate: the SIGNED! tab starts later than the lead tabs, so sign-ups are on record from later. */
+export type Coverage = Partial<Record<SourceKey | "leads" | "signups", string>>;
 
 export type AnalyticsView = {
   range: DateRange;

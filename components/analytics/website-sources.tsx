@@ -5,7 +5,7 @@ import { Section } from "./section";
 const SHOWN = 12;
 
 /** Where visits came from, by site: Google, ChatGPT, Instagram… with how many were engaged. */
-export function WebsiteSources({ sources, total, periodLabel }: { sources: SourceDetailRow[]; total: number; periodLabel: string }) {
+export function WebsiteSources({ sources, total, when }: { sources: SourceDetailRow[]; total: number; when: string }) {
   const rows = sources.slice(0, SHOWN);
   const max = Math.max(0, ...rows.map((r) => r.sessions));
   const ai = sources.filter((s) => s.kind === "AI assistant").reduce((s, r) => s + r.sessions, 0);
@@ -17,7 +17,7 @@ export function WebsiteSources({ sources, total, periodLabel }: { sources: Sourc
         sample={false}
         description={
           total
-            ? `In the last ${periodLabel}: ${formatFull(ai)} ${ai === 1 ? "visit" : "visits"} from AI assistants and ${formatFull(social)} from social media, out of ${formatFull(total)}.`
+            ? `${when.charAt(0).toUpperCase()}${when.slice(1)}: ${formatFull(ai)} ${ai === 1 ? "visit" : "visits"} from AI assistants and ${formatFull(social)} from social media, out of ${formatFull(total)}.`
             : "Visits to spiralny.com by the site they came from."
         }
         footer={`"Direct" is a typed address, a bookmark, an app that hides where it came from, or a link with no tag (cold-email links included); some robots land here too. Engaged: longer than 10 seconds, 2 or more pages, or a key action.`}

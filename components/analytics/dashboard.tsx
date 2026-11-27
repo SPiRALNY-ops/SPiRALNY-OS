@@ -1,5 +1,5 @@
 import { shortDate } from "@/lib/analytics/range";
-import type { Finding } from "@/lib/analytics/insights";
+import { websiteWhen, type Finding } from "@/lib/analytics/insights";
 import type { AnalyticsView, KpiKey, LongView } from "@/lib/analytics/types";
 import { formatFull, formatPercent } from "@/lib/format";
 import { ColdFunnel, ColdHealth, CampaignsSection, EmailSteps } from "./cold-email-section";
@@ -230,7 +230,7 @@ export function WebsitePage({ view, findings }: PageProps) {
         since={view.coverage.ga4}
         rangeStart={view.range.start}
         periodLabel={period}
-        sources={view.website.origin === "real" ? <WebsiteSources sources={view.website.sources} total={view.website.sessions} periodLabel={period} /> : undefined}
+        sources={view.website.origin === "real" ? <WebsiteSources sources={view.website.sources} total={view.website.sessions} when={websiteWhen(view)} /> : undefined}
       />
     </RangeFrame>
   );

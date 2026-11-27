@@ -81,12 +81,15 @@ export function ColdFunnel({ cold, leads, signups, periodLabel }: { cold: Cold; 
   );
 }
 
-/** Bounces and unsubscribes: the health of the sending, not of interest. */
+/**
+ * Bounces and automatic replies: the health of the sending, not of interest. (No "Unsubscribed":
+ * Spiral NY's emails carry no unsubscribe link, so Instantly always reports 0; people who say
+ * "stop" are marked not interested instead.)
+ */
 export function ColdHealth({ cold }: { cold: Cold }) {
   const h = cold.health;
   if (!h) return null;
   const bounce = h.sent ? h.bounced / h.sent : 0;
-  const unsub = h.sent ? h.unsubscribed / h.sent : 0;
   return (
     <section aria-label="Sending health" className="rounded-xl border bg-card p-4 shadow-xs sm:p-5">
       <div className="mb-4 flex flex-wrap items-center gap-2">
@@ -107,10 +110,10 @@ export function ColdHealth({ cold }: { cold: Cold }) {
           info="Emails that couldn't be delivered (bad or closed addresses). Many bounces make inbox providers trust the sending address less."
         />
         <Stat
-          label="Unsubscribed"
-          value={formatPercent(unsub, 1)}
-          sub={`${formatFull(h.unsubscribed)} ${h.unsubscribed === 1 ? "person" : "people"}, out of ${formatFull(h.sent)} emails sent`}
-          info="People who asked not to be emailed again."
+          label="Auto-replies"
+          value={formatFull(h.autoReplies)}
+          sub="Out-of-office and other automatic replies"
+          info="People who sent an automatic reply (out of office, changed jobs, mailbox full), each counted once. Automatic replies are never counted as Replied."
         />
       </div>
     </section>

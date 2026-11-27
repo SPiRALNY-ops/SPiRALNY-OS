@@ -12,7 +12,7 @@ export function Section({
   description?: React.ReactNode;
   sample: boolean;
   footer?: React.ReactNode;
-  children: React.ReactNode;
+  children?: React.ReactNode;
 }) {
   return (
     <section className="min-w-0 rounded-xl border bg-card p-4 shadow-xs sm:p-5">

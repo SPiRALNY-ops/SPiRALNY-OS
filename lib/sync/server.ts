@@ -2,6 +2,7 @@ import "server-only";
 import { after } from "next/server";
 import { todayIn } from "@/lib/analytics/range";
 import { getDb } from "@/lib/db";
+import type { Db } from "@/lib/db/types";
 import { env } from "@/lib/env";
 import { getGoogleConnection, type GoogleConnection } from "@/lib/sources/google-account";
 import { runSync, sourceReadiness, type Readiness } from "./index";
@@ -57,22 +58,39 @@ export function startSync(only?: SyncSource[]): "started" | "already-running" {
 export const DAILY_SYNC_HOUR = 6;
 
 /**
- * True once it's past the morning hour in New York and no sync has completed a step since then
- * today. Steps left "running" by a restart don't count, so an interrupted morning sync runs again.
+ * The sources still due today: once it's past the morning hour in New York, every source that is
+ * set up and hasn't finished a run since then (whatever the outcome). Runs left "running" by a
+ * restart don't count, so a morning sync cut short by a deploy picks up the sources it missed,
+ * and only those. Sources that aren't set up yet are never due (they'd only report "not ready").
  */
-export async function syncDue(): Promise<boolean> {
-  if (isSyncRunning()) return false;
+export async function dueSources(): Promise<SyncSource[]> {
+  if (isSyncRunning()) return [];
   const db = await getDb();
-  const [row] = await db.query<{ due: boolean }>(
-    `with today as (
-       select (date_trunc('day', now() at time zone $1) + make_interval(hours => $2)) at time zone $1 as from_time
-     )
-     select now() >= today.from_time
-            and coalesce((select max(started_at) from spiral.sync_runs where status <> 'running'), 'epoch') < today.from_time as due
-       from today`,
-    [env().TIMEZONE, DAILY_SYNC_HOUR],
+  const readiness = sourceReadiness(syncConfigFromEnv(), await getGoogleConnection(db));
+  return dueSourcesIn(db, {
+    timezone: env().TIMEZONE,
+    hour: DAILY_SYNC_HOUR,
+    ready: SYNC_ORDER.filter((s) => readiness[s].ready),
+  });
+}
+
+/** The rule behind dueSources, on a given database (so it can be tested). */
+export async function dueSourcesIn(
+  db: Pick<Db, "query">,
+  opts: { timezone: string; hour: number; ready: SyncSource[] },
+): Promise<SyncSource[]> {
+  const [today] = await db.query<{ past: boolean; from_time: Date | string }>(
+    `select now() >= t.from_time as past, t.from_time
+       from (select (date_trunc('day', now() at time zone $1) + make_interval(hours => $2)) at time zone $1 as from_time) t`,
+    [opts.timezone, opts.hour],
   );
-  return Boolean(row?.due);
+  if (!today?.past) return [];
+  const done = await db.query<{ source: SyncSource }>(
+    "select distinct source from spiral.sync_runs where status <> 'running' and started_at >= $1",
+    [today.from_time],
+  );
+  const finished = new Set(done.map((r) => r.source));
+  return SYNC_ORDER.filter((s) => opts.ready.includes(s) && !finished.has(s));
 }
 
 export type LastRun = {

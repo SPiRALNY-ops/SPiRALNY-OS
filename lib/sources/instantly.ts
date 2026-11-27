@@ -117,6 +117,8 @@ export type InstantlyOverview = {
   contacted_count?: number;
   new_leads_contacted_count?: number;
   reply_count_unique?: number;
+  /** Out-of-office and other automatic replies, each person once. */
+  reply_count_automatic_unique?: number;
   bounced_count?: number;
   unsubscribed_count?: number;
   total_interested?: number;

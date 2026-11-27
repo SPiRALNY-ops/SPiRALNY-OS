@@ -250,13 +250,6 @@ export function samplePlans(range: DateRange): { joined: Ranked[]; asked: Ranked
   return { joined: rank(joined), asked: rank(asked) };
 }
 
-export function sampleLeadStatus(range: DateRange): Ranked[] {
-  const leads = sampleKpis(range).find((x) => x.key === "leads")!.value;
-  const m = spread(leads, [["signed", 0.14], ["interested", 0.3], ["following", 0.43], ["not", 0.13]]);
-  const label = { signed: "Signed up", interested: "Interested", following: "Following up", not: "Not interested" };
-  return [...m].map(([key, value]) => ({ key, label: label[key as keyof typeof label], value }));
-}
-
 function sampleStats(days: DailySearchPoint[], salt: string): SearchStats {
   const clicks = days.reduce((s, d) => s + d.clicks, 0);
   const impressions = days.reduce((s, d) => s + d.impressions, 0);
@@ -300,7 +293,7 @@ export function sampleWebsite(range: DateRange) {
   return { sessions, engaged: Math.round(sessions * 0.52), channels: toRanked(channels), devices: toRanked(devices), landing };
 }
 
-export function sampleColdFunnel(range: DateRange): { funnel: FunnelStep[]; health: { sent: number; newContacted: number; bounced: number; unsubscribed: number }; steps: EmailStepRow[] } {
+export function sampleColdFunnel(range: DateRange): { funnel: FunnelStep[]; health: { sent: number; newContacted: number; bounced: number; autoReplies: number }; steps: EmailStepRow[] } {
   const rows = sampleCampaigns(range);
   const contacted = rows.reduce((s, r) => s + r.contacted, 0);
   const replied = rows.reduce((s, r) => s + r.replies, 0);
@@ -315,7 +308,7 @@ export function sampleColdFunnel(range: DateRange): { funnel: FunnelStep[]; heal
       { key: "replied", label: "Replied", value: replied, note: "Different people who replied. Out-of-office replies are left out." },
       { key: "interested", label: "Marked interested", value: interested },
     ],
-    health: { sent, newContacted: Math.round(contacted * 0.3), bounced: rows.reduce((s, r) => s + r.bounced, 0), unsubscribed: Math.round(contacted * 0.002) },
+    health: { sent, newContacted: Math.round(contacted * 0.3), bounced: rows.reduce((s, r) => s + r.bounced, 0), autoReplies: Math.round(contacted * 0.004) },
     steps: [0, 1, 2, 3].map((step) => ({
       step,
       variant: 0,

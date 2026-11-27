@@ -156,6 +156,7 @@ export async function syncInstantly(ctx: SyncContext): Promise<SourceResult> {
       won: o.total_closed ?? 0,
       bounced: o.bounced_count ?? 0,
       unsubscribed: o.unsubscribed_count ?? 0,
+      auto_replies: o.reply_count_automatic_unique ?? 0,
     });
   }
   const steps = new Map<string, { range_start: string; range_end: string; step: number; variant: number; sent: number; replies: number; opportunities: number }>();
@@ -192,6 +193,7 @@ export async function syncInstantly(ctx: SyncContext): Promise<SourceResult> {
         ["won", "integer"],
         ["bounced", "integer"],
         ["unsubscribed", "integer"],
+        ["auto_replies", "integer"],
       ],
       overviews,
       "on conflict do nothing",

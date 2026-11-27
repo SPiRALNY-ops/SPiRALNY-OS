@@ -122,25 +122,19 @@ export async function plans(db: Db, p: Period, tz: string): Promise<{ joined: Ra
   return { joined: rankPlans(joined), asked: rankPlans(asked) };
 }
 
-/** The lead sheet's status for leads that came in during the period, in pipeline order. */
-export async function leadStatus(db: Db, p: Period): Promise<Ranked[]> {
-  const rows = await db.query<{ status: string | null; n: number }>(
-    `select status, count(distinct coalesce(person_id::text, lower(email), tab || '#' || row_number))::int as n
-       from spiral.lead_sheet_rows
-      where kind = 'lead' and day between $1::date and $2::date
-      group by status`,
-    [p.start, p.end],
-  );
-  const order = [
-    { key: "signed", label: "Signed up", test: /signed/i },
-    { key: "interested", label: "Interested", test: /^(?!.*not).*interested/i },
-    { key: "following", label: "Following up", test: /chas|follow/i },
-    { key: "not", label: "Not interested", test: /not interested/i },
-  ];
-  const out = order.map((o) => ({ key: o.key, label: o.label, value: 0 }));
+/** The lead sheet's Status values, in pipeline order (shared by every section that reads them). */
+export const STATUS_ORDER = [
+  { key: "signed", label: "Signed up", test: /signed/i },
+  { key: "interested", label: "Interested", test: /^(?!.*not).*interested/i },
+  { key: "following", label: "Following up", test: /chas|follow/i },
+  { key: "not", label: "Not interested", test: /not interested/i },
+] as const;
+
+export function rankStatuses(rows: { status: string | null; n: number }[]): Ranked[] {
+  const out = STATUS_ORDER.map((o) => ({ key: o.key as string, label: o.label as string, value: 0 }));
   let other = 0;
   for (const r of rows) {
-    const i = order.findIndex((o) => o.test.test(r.status ?? ""));
+    const i = STATUS_ORDER.findIndex((o) => o.test.test(r.status ?? ""));
     if (i >= 0) out[i].value += r.n;
     else other += r.n;
   }
@@ -195,9 +189,9 @@ export async function coldFunnel(db: Db, p: Period) {
     meetings_completed: number;
     won: number;
     bounced: number;
-    unsubscribed: number;
+    auto_replies: number;
   }>(
-    `select sent, new_contacted, replied, interested, meetings_booked, meetings_completed, won, bounced, unsubscribed
+    `select sent, new_contacted, replied, interested, meetings_booked, meetings_completed, won, bounced, auto_replies
        from spiral.instantly_range_overview where range_start = $1::date and range_end = $2::date`,
     [p.start, p.end],
   );
@@ -210,7 +204,7 @@ export async function coldFunnel(db: Db, p: Period) {
   // Only shown once Spiral NY uses these stages in Instantly.
   if (o.meetings_booked) funnel.push({ key: "meetings", label: "Meeting booked", value: o.meetings_booked });
   if (o.won) funnel.push({ key: "won", label: "Won", value: o.won });
-  return { funnel, health: { sent: o.sent, newContacted: o.new_contacted, bounced: o.bounced, unsubscribed: o.unsubscribed } };
+  return { funnel, health: { sent: o.sent, newContacted: o.new_contacted, bounced: o.bounced, autoReplies: o.auto_replies } };
 }
 
 /** Each email of the sequences for exactly this period, all campaigns added up. */

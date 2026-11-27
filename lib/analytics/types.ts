@@ -104,7 +104,6 @@ export type AnalyticsView = {
   leadsBySource: Section<{ buckets: SourceBucket[] }>;
   signupsBySource: Section<{ buckets: SourceBucket[] }>;
   plans: Section<{ joined: Ranked[]; asked: Ranked[] }>;
-  leadStatus: Section<{ rows: Ranked[] }>;
   pages: Section<{ rows: PageRow[]; groups: GroupRow<PageGroupKey>[] }>;
   searches: Section<{
     daily: DailySearchPoint[];
@@ -112,6 +111,8 @@ export type AnalyticsView = {
     totals: SearchStats;
     previous: SearchStats | null;
     groups: GroupRow<SearchGroupKey>[];
+    /** Deeper search numbers for the period; null until Search Console is connected. */
+    deep: SearchDeep | null;
   }>;
   website: Section<{
     sessions: number;
@@ -119,14 +120,98 @@ export type AnalyticsView = {
     channels: Ranked[];
     devices: Ranked[];
     landing: LandingRow[];
+    /** Where visits came from, by site (Google, ChatGPT, Instagram…); empty for sample data. */
+    sources: SourceDetailRow[];
   }>;
   coldEmail: Section<{
     rows: CampaignRow[];
     funnel: FunnelStep[];
-    health: { sent: number; newContacted: number; bounced: number; unsubscribed: number } | null;
+    health: { sent: number; newContacted: number; bounced: number; autoReplies: number } | null;
     steps: EmailStepRow[];
   }>;
   coverage: Coverage;
   /** Last day each source has data (Search Console runs 2–3 days behind). */
   coverageEnd: Coverage;
 };
+
+/** A recruiting search where spiralny.com sits just off the top of Google (positions 4–20). */
+export type OpportunityRow = { query: string; path: string; impressions: number; clicks: number; position: number };
+
+/** A page or search whose clicks moved between this period and the one before. */
+export type MoverRow = { key: string; label: string; group: string; now: number; before: number };
+
+/** A search where two or more Spiral NY pages show up, splitting Google's attention. */
+export type CompetingRow = {
+  query: string;
+  group: SearchGroupKey;
+  impressions: number;
+  pages: { path: string; position: number; impressions: number }[];
+};
+
+export type PositionBucket = { key: string; label: string; clicks: number; impressions: number };
+
+export type SearchDeep = {
+  /** Clicks on searches Google names (it hides rare ones), for the "covers N%" notes. */
+  namedClicks: number;
+  opportunities: { rows: OpportunityRow[]; total: number; impressions: number; clicks: number };
+  /** null when Search Console doesn't cover the whole period before. */
+  movers: { pages: MoverRow[]; searches: MoverRow[] } | null;
+  competing: { rows: CompetingRow[]; total: number; recruiting: number };
+  positions: PositionBucket[];
+};
+
+export type SourceDetailRow = { key: string; label: string; kind: string; sessions: number; engaged: number };
+
+/** A calendar month in New York time. `partial` = the month isn't over (or data stops inside it). */
+export type MonthPoint = { key: string; label: string; partial: boolean; /** The data's first day, when it falls inside this month. */ starts?: string };
+
+export type PlanKey = "100%" | "90%" | "Park Your License" | "Referral";
+
+export type RecruitingTrend = { path: string; clicks: number; monthly: number[] };
+
+/** Numbers that don't depend on the period picker: long trends and how things stand today. */
+export type LongView = {
+  today: string;
+  search: {
+    months: MonthPoint[];
+    clicks: number[];
+    impressions: number[];
+    /** Clicks on named searches per month, by group. */
+    groups: Record<SearchGroupKey, number[]>;
+    namedShare: number;
+    recruitingPages: RecruitingTrend[];
+  } | null;
+  leads: {
+    signupMonths: MonthPoint[];
+    signups: { total: number[]; plans: Record<PlanKey | "none", number[]> };
+    inquiryMonths: { month: MonthPoint; leads: number; signed: number }[];
+    backlog: { rows: Ranked[]; undated: number; total: number };
+    onboarding: { signed: number; associated: number; whatsapp: number; withdrew: number; notAssociated: number; notWhatsapp: number };
+    health: { leadRows: number; noDate: number; noPlan: number; noSource: number; signups: number; signupsNoSource: number };
+    historyDays: number;
+  } | null;
+  cold: {
+    weeks: { key: string; label: string; sent: number; replies: number; partial: boolean }[];
+    months: { key: string; label: string; sent: number; replies: number; partial: boolean; starts?: string }[];
+  } | null;
+};
+
+/** What the detail panel shows for one page or search. */
+export type ItemView =
+  | {
+      kind: "page";
+      id: string;
+      group: PageGroupKey;
+      url: string;
+      months: { key: string; label: string; clicks: number; impressions: number; position: number }[];
+      searches: SearchRow[];
+      visits: number | null;
+      forms: { leads: number; signups: number } | null;
+    }
+  | {
+      kind: "search";
+      id: string;
+      group: SearchGroupKey;
+      months: { key: string; label: string; clicks: number; impressions: number; position: number }[];
+      pages: { path: string; clicks: number; impressions: number; position: number }[];
+    };

@@ -9,7 +9,7 @@ import { requestJson, type Fetch } from "./http";
 import { findLeadsByEmail, listCampaigns } from "./instantly";
 import { SPIRAL_FORMS, normalizePhone, notificationMessage, parseAmountCents, parseSpiralEntry } from "./wpforms-email";
 import { ABANDONED_HTML, COMPLETE_TEXT, LEAD_SHEET_TABS_FIXTURE } from "@/test/fixtures";
-import { normalizePlan, parseLeadSheetTab, parseSheetDate, sourceFromHowFound, tabRule } from "./lead-sheet";
+import { normalizePlan, parseLeadSheetTab, parseSheetDate, sourceFromHowFound, sourceFromSignupNote, tabRule } from "./lead-sheet";
 import { readTabs } from "./sheets";
 import { pickSpiralSite } from "./gsc";
 
@@ -316,7 +316,11 @@ describe("lead sheet", () => {
       expect.objectContaining({ kind: "signup", day: "2026-11-11", fullName: "Jane Doe", email: "jane@example.com", phone: "6465550199", plan: "100%", howFound: null, source: "unknown", rowNumber: 2 }),
       expect.objectContaining({ kind: "signup", day: "2026-11-14", fullName: "Sam Lee", plan: "Park Your License", licenseNumber: "40DE0000001" }),
     ]);
-    // The notes column ("Referral to 90%") is not read as a referral source.
+    // The notes column ("Referral to 90%") is a plan change, not a referral source.
+    expect(signed.map((r) => [r.associated, r.whatsapp, r.withdrew])).toEqual([
+      [true, true, false],
+      [true, false, false],
+    ]);
 
     const fresh = parseLeadSheetTab("FWD/FRESH", LEAD_SHEET_TABS_FIXTURE["FWD/FRESH"]);
     expect(fresh).toHaveLength(2); // the empty row is skipped
@@ -325,6 +329,29 @@ describe("lead sheet", () => {
 
     const instantly = parseLeadSheetTab("Instantly", LEAD_SHEET_TABS_FIXTURE.Instantly);
     expect(instantly[0]).toMatchObject({ day: "2026-11-05", email: "lee@example.com", plan: "Park Your License", source: "cold_email" });
+  });
+
+  it("reads a source from SIGNED! notes only when the note starts with one clear source", () => {
+    // The phrasings found on the real sheet (2026-11-27), plus team notes that must not count.
+    const notes: [string, string | null][] = [
+      ["Email", "cold_email"],
+      ["Emails and calls", "cold_email"],
+      ["Email and calls", "cold_email"],
+      ["Emails and virtual meeting", "cold_email"],
+      ["Email - withdrew association", "cold_email"],
+      ["Instantly", "cold_email"],
+      ["SEO", "google"],
+      ["SEO / withdrew his association", "google"],
+      ["Referred by a colleague", "referral"],
+      ["Student leads/SEO", null], // two sources named
+      ["Referral to 90%", null], // a plan change
+      ["From 90% to Park your license / no payment", null],
+      ["Do not contact again. Remove from all emails.", null], // an instruction
+      ["Withdrew her association", null],
+      ["Recruiter", null],
+      ["", null],
+    ];
+    expect(notes.map(([n]) => sourceFromSignupNote(n))).toEqual(notes.map(([, s]) => s));
   });
 
   it("normalises plans and answers to \"How did you find us?\"", () => {

@@ -96,7 +96,9 @@ export function resolveRange(key: RangeKey, today: string): DateRange {
   return { key, label, start, end, previousStart, previousEnd, bucketSize, buckets: makeBuckets(start, end, bucketSize) };
 }
 
-/** Every date from start to end inclusive. */
+/** A period the data doesn't fully cover: it starts partway ("from Nov 20") or isn't over ("so far"). */
+export const soFar = (m: { partial: boolean; starts?: string }) => (m.starts ? ` (from ${shortDate(m.starts)})` : m.partial ? " (so far)" : "");
+
 /** Adds daily values into the range's buckets, in bucket order (days outside the range are ignored). */
 export function sumIntoBuckets(range: Pick<DateRange, "bucketSize" | "start" | "end" | "buckets">, daily: Iterable<[string, number]>): number[] {
   const index = new Map(range.buckets.map((b, i) => [b.key, i]));

@@ -5,6 +5,7 @@
  * shows "—" for columns whose source isn't connected yet.
  */
 import type { Db } from "@/lib/db/types";
+import * as deep from "./deep";
 import * as d from "./details";
 import * as q from "./queries";
 import { resolveRange, sumIntoBuckets } from "./range";
@@ -87,11 +88,12 @@ export async function buildAnalytics(
     pageRows,
     pageGroups,
     planRows,
-    leadStatusRows,
     websiteData,
     funnel,
     campaignRows,
     steps,
+    searchDeep,
+    websiteSources,
   ] = await Promise.all([
     when(leadsReal, () => q.bySource(db, range, timezone, "leads")),
     when(leadsReal, () => q.bySource(db, range, timezone, "signups")),
@@ -112,11 +114,12 @@ export async function buildAnalytics(
     when(gscReal, () => q.pageRows(db, current, timezone, { withVisits: ga4Real, withForms: formsReal })),
     when(gscReal, () => d.pageGroups(db, current)),
     when(leadsReal, () => d.plans(db, current, timezone)),
-    when(real("lead_sheet"), () => d.leadStatus(db, current)),
     when(ga4Real, () => d.website(db, current)),
     when(instantlyReal, () => d.coldFunnel(db, current)),
     when(instantlyReal, () => q.campaignRows(db, current, timezone, leadsReal)),
     when(instantlyReal, () => d.emailSteps(db, current)),
+    when(gscReal, () => deep.searchDeep(db, current, comparable("gsc") ? previous : null)),
+    when(ga4Real, () => deep.websiteSources(db, current)),
   ]);
 
   const leadsBySource = leadBuckets
@@ -184,9 +187,6 @@ export async function buildAnalytics(
     ? { origin: "real" as const, ...planRows }
     : { origin: "sample" as const, ...sample.samplePlans(range) };
 
-  const leadStatus = leadStatusRows
-    ? { origin: "real" as const, rows: leadStatusRows }
-    : { origin: "sample" as const, rows: sample.sampleLeadStatus(range) };
 
   const pages =
     pageRows && pageGroups
@@ -202,6 +202,7 @@ export async function buildAnalytics(
           totals: searchTotals,
           previous: searchTotalsBefore,
           groups: d.searchGroups(queryTotals),
+          deep: searchDeep,
         }
       : {
           origin: "sample" as const,
@@ -209,11 +210,12 @@ export async function buildAnalytics(
           rows: sample.sampleSearches(range),
           ...sample.sampleSearchTotals(range),
           groups: sample.sampleSearchGroups(range),
+          deep: null,
         };
 
   const website = websiteData
-    ? { origin: "real" as const, ...websiteData }
-    : { origin: "sample" as const, ...sample.sampleWebsite(range) };
+    ? { origin: "real" as const, ...websiteData, sources: websiteSources ?? [] }
+    : { origin: "sample" as const, ...sample.sampleWebsite(range), sources: [] };
 
   const coldEmail: AnalyticsView["coldEmail"] = instantlyReal
     ? {
@@ -233,7 +235,6 @@ export async function buildAnalytics(
     leadsBySource,
     signupsBySource,
     plans,
-    leadStatus,
     pages,
     searches,
     website,

@@ -13,6 +13,7 @@ import { syncGa4 } from "./ga4";
 import { syncGsc } from "./gsc";
 import { syncInstantly } from "./instantly";
 import { syncLeadSheet } from "./lead-sheet";
+import { acquireLease, releaseLease, renewLease } from "./lease";
 import { closeStaleRuns, recordRun } from "./store";
 import { SYNC_ORDER, type RunSummary, type SourceResult, type SyncConfig, type SyncContext, type SyncSource } from "./types";
 
@@ -52,12 +53,29 @@ export async function runSync(
   deps: { db: Db; fetch: Fetch; today: string; config: SyncConfig },
   only?: SyncSource[],
 ): Promise<RunSummary[]> {
+  const { db } = deps;
+  // Only one sync at a time, even across two servers (during a deploy both run for a while).
+  const lease = await acquireLease(db);
+  if (!lease) return [];
+  try {
+    return await runSteps(deps, only, lease);
+  } finally {
+    await releaseLease(db, lease);
+  }
+}
+
+async function runSteps(
+  deps: { db: Db; fetch: Fetch; today: string; config: SyncConfig },
+  only: SyncSource[] | undefined,
+  lease: { holder: string },
+): Promise<RunSummary[]> {
   const { db, config } = deps;
+  // Holding the lease, any run still marked "running" belongs to a sync that died mid-way.
   await closeStaleRuns(db);
   const google = await getGoogleConnection(db);
   const readiness = sourceReadiness(config, google);
 
-  const ctx: SyncContext = { ...deps };
+  const ctx: SyncContext = { ...deps, heartbeat: () => renewLease(db, lease) };
   if (config.google && config.encryptionKey && google) {
     const key = parseKey(config.encryptionKey);
     ctx.googleToken = () => googleAccessToken(db, deps.fetch, config.google!, key);
@@ -72,6 +90,7 @@ export async function runSync(
       continue;
     }
     results.push(await recordRun(db, source, () => STEPS[source](ctx)));
+    await ctx.heartbeat!();
   }
   return results;
 }

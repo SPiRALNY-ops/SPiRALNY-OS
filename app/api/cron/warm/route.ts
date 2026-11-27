@@ -18,5 +18,14 @@ export async function POST(request: Request) {
   const dbRoundTripMs = Math.round((performance.now() - started) * 10) / 10;
   started = performance.now();
   await warmAnalytics();
-  return Response.json({ status: "warm", ms: Math.round(performance.now() - started), dbRoundTripMs });
+  // Memory after warming, to check the in-memory cache size (cacheMaxMemorySize in next.config.ts).
+  const mem = process.memoryUsage();
+  const mb = (n: number) => Math.round(n / 1024 / 1024);
+  return Response.json({
+    status: "warm",
+    ms: Math.round(performance.now() - started),
+    dbRoundTripMs,
+    heapUsedMb: mb(mem.heapUsed),
+    rssMb: mb(mem.rss),
+  });
 }

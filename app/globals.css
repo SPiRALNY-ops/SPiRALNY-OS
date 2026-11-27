@@ -51,6 +51,7 @@
   --color-chart-muted: var(--chart-muted);
   --color-good: var(--good);
   --color-bad: var(--bad);
+  --color-warn: var(--warn);
   --color-good-inverse: var(--good-inverse);
   --color-bad-inverse: var(--bad-inverse);
   --color-ring: var(--ring);
@@ -131,6 +132,8 @@
   /* change up / down text (always paired with an arrow icon) */
   --good: #006300;
   --bad: #b42d2d;
+  /* "Watch" findings: icon only, always beside the word (4.6:1 on white). */
+  --warn: #9a6700;
   /* the same, on the charcoal band (4.6:1 and 4.8:1 on #252526) */
   --good-inverse: #0ca30c;
   --bad-inverse: #e66767;
@@ -182,6 +185,7 @@
   --chart-muted: #898781;
   --good: #0ca30c;
   --bad: #e66767;
+  --warn: #e3b341;
   --good-inverse: #0ca30c;
   --bad-inverse: #e66767;
 }

@@ -42,6 +42,11 @@ export type LeadSheetRow = {
   plan: "100%" | "90%" | "Referral" | "Park Your License" | null;
   howFound: string | null;
   source: LeadSource;
+  /** SIGNED! only: the "Check if Associated" and "Added to WhatsApp Group" checkboxes. */
+  associated: boolean | null;
+  whatsapp: boolean | null;
+  /** SIGNED! only: the notes say the agent withdrew their association (the note itself isn't kept). */
+  withdrew: boolean | null;
 };
 
 const MONTHS = ["january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december"];
@@ -91,6 +96,33 @@ export function sourceFromHowFound(value: unknown): LeadSource | null {
   return null;
 }
 
+/**
+ * SIGNED!'s "Notes / How did you find us?" mixes the source with team notes: "Referral to 90%" is a
+ * plan change and "remove from all emails" an instruction, not sources. So only a note that STARTS
+ * with a source word counts ("Email", "Emails and calls", "Instantly", "SEO / …", "Referred by …"),
+ * and a note naming two sources ("Student leads/SEO") counts as neither.
+ */
+export function sourceFromSignupNote(value: unknown): LeadSource | null {
+  const s = norm(value);
+  if (!s) return null;
+  const found = new Set<LeadSource>();
+  if (/^(cold )?e-?mails?\b|^instantly\b/.test(s)) found.add("cold_email");
+  if (/^(seo|google)\b/.test(s)) found.add("google");
+  if (/^(referr(al|ed) (by|from)|a friend|friend|word of mouth)\b/.test(s)) found.add("referral");
+  if (found.size !== 1) return null;
+  const [source] = found;
+  // The note goes on to name another source as well: not one clear answer.
+  const others: Record<string, RegExp> = {
+    cold_email: /\b(seo|google|referr)/,
+    google: /\b(e-?mails?|instantly|student leads|referr)/,
+    referral: /\b(e-?mails?|instantly|seo|google)\b/,
+  };
+  return others[source].test(s) ? null : source;
+}
+
+const checked = (v: unknown): boolean | null =>
+  v === true || /^true$/i.test(String(v ?? "").trim()) ? true : v === false || /^false$/i.test(String(v ?? "").trim()) ? false : null;
+
 const EMAIL_RE = /[A-Z0-9._%+'-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i;
 const text = (v: unknown) => {
   const s = String(v ?? "").replace(/[‪-‮]/g, "").trim();
@@ -112,7 +144,11 @@ export function parseLeadSheetTab(title: string, values: unknown[][]): LeadSheet
     status: col((h) => h === "status"),
     inquiring: col((h) => h.startsWith("inquiring about")),
     howFound: col((h) => /(how|where) did you find us/.test(h) && !h.includes("notes")),
+    // SIGNED!'s combined "Notes / How did you find us?" column: read for its source only.
+    signupNote: rule.kind === "signup" ? col((h) => h.includes("notes") && /(how|where) did you find us/.test(h)) : -1,
     license: col((h) => h.startsWith("license")),
+    associated: col((h) => h.includes("associated")),
+    whatsapp: col((h) => h.includes("whatsapp")),
   };
   const at = (row: unknown[], i: number) => (i >= 0 ? row[i] : undefined);
 
@@ -125,6 +161,7 @@ export function parseLeadSheetTab(title: string, values: unknown[][]): LeadSheet
     if (!fullName && !email && !phone) return; // an empty row
     const status = text(at(row, c.status));
     const howFound = text(at(row, c.howFound));
+    const note = c.signupNote >= 0 ? at(row, c.signupNote) : undefined;
     rows.push({
       tab: title,
       rowNumber: i + 2,
@@ -138,7 +175,10 @@ export function parseLeadSheetTab(title: string, values: unknown[][]): LeadSheet
       // On SIGNED! the Status column is the plan they joined; elsewhere "Inquiring about?" is.
       plan: normalizePlan(c.inquiring >= 0 ? at(row, c.inquiring) : rule.kind === "signup" ? status : null),
       howFound,
-      source: rule.source ?? sourceFromHowFound(howFound) ?? "unknown",
+      source: rule.source ?? sourceFromHowFound(howFound) ?? sourceFromSignupNote(note) ?? "unknown",
+      associated: c.associated >= 0 ? checked(at(row, c.associated)) : null,
+      whatsapp: c.whatsapp >= 0 ? checked(at(row, c.whatsapp)) : null,
+      withdrew: c.signupNote >= 0 ? /\bwithdr[ae]w/.test(norm(note)) : null,
     });
   });
   return rows;

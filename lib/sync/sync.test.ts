@@ -145,7 +145,7 @@ function fakeApis(world: World): Fetch {
       });
     }
     if (url.pathname === "/api/v2/campaigns/analytics/overview") {
-      return json({ emails_sent_count: 410, contacted_count: 380, new_leads_contacted_count: 150, reply_count_unique: 9, total_interested: 2, total_meeting_booked: 0, total_closed: 0, bounced_count: 11, unsubscribed_count: 1 });
+      return json({ emails_sent_count: 410, contacted_count: 380, new_leads_contacted_count: 150, reply_count_unique: 9, total_interested: 2, total_meeting_booked: 0, total_closed: 0, bounced_count: 11, unsubscribed_count: 1, reply_count_automatic_unique: 3 });
     }
     if (url.pathname === "/api/v2/campaigns/analytics/steps") {
       expect(url.searchParams.get("campaign_id")).toBe("camp-1");
@@ -294,7 +294,7 @@ describe("daily sync", () => {
     expect(brooklyn).toMatchObject({ visits: 30, googleClicks: 5, leads: 1, signups: 1 });
     // Cold email funnel from Instantly's overview; meetings and won hidden while unused.
     expect(view.coldEmail.funnel.map((f) => [f.key, f.value])).toEqual([["sent", 410], ["replied", 9], ["interested", 2]]);
-    expect(view.coldEmail.health).toEqual({ sent: 410, newContacted: 150, bounced: 11, unsubscribed: 1 });
+    expect(view.coldEmail.health).toEqual({ sent: 410, newContacted: 150, bounced: 11, autoReplies: 3 });
     // Each email of the sequence, A/B versions folded into their email; rows Instantly couldn't place are dropped.
     expect(view.coldEmail.steps).toEqual([
       { step: 0, variant: 0, sent: 250, replies: 3, opportunities: 1 },
@@ -310,8 +310,6 @@ describe("daily sync", () => {
     // Plans: Jane joined on 100% (form) and the sheet; Sam on Park Your License.
     const joined = Object.fromEntries(view.plans.joined.map((r) => [r.key, r.value]));
     expect(joined).toMatchObject({ "100%": 1, "Park Your License": 1 });
-    // Lead status from the sheet: Pat and Lee are "Interested".
-    expect(view.leadStatus.rows.find((r) => r.key === "interested")?.value).toBe(2);
 
     // Data only goes back to early November here, so nothing is compared with the period before.
     expect(view.kpis.every((k) => k.previous === null)).toBe(true);

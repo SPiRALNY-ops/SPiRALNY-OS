@@ -45,6 +45,11 @@ export function listOf(items: string[]): string {
   return items.length > 1 ? `${items.slice(0, -1).join(", ")} and ${items.at(-1)}` : (items[0] ?? "");
 }
 
+/** How a page path reads to a person: the home page by name, everything else as its path. */
+export function pageLabel(path: string): string {
+  return path === "/" ? "Home page" : path;
+}
+
 /** "1 row" / "415 rows". */
 export function plural(n: number, one: string, many: string): string {
   return `${formatFull(n)} ${n === 1 ? one : many}`;

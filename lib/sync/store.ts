@@ -70,10 +70,13 @@ export async function recordRun(
   }
 }
 
-/** A run left "running" by a restart would block nothing, but would look stuck; close it. */
+/**
+ * Called by the sync that holds the lease: any other run still marked "running" was left behind by
+ * a sync that died (a restart or deploy), whose lease has expired. Close it, so it doesn't look stuck.
+ */
 export async function closeStaleRuns(db: Pick<Db, "query">): Promise<void> {
   await db.query(
     `update spiral.sync_runs set status = 'error', finished_at = now(), message = 'Interrupted (the server restarted).'
-      where status = 'running' and started_at < now() - interval '2 hours'`,
+      where status = 'running'`,
   );
 }

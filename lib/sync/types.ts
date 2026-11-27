@@ -28,6 +28,8 @@ export type SyncContext = {
   config: SyncConfig;
   /** Access token for the stored Google connection (set when Google is connected). */
   googleToken?: () => Promise<string>;
+  /** Renews the sync lease; long steps call it between their parts. */
+  heartbeat?: () => Promise<void>;
 };
 
 /**

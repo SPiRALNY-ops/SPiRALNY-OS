@@ -61,27 +61,44 @@ With Cache Components: anything that reads cookies, search params or the databas
 
 ## Layout
 - `app/(os)/` — the signed-in shell (sidebar with all 10 tools) and pages. `app/(os)/[tool]` = coming-soon tools.
+- Analytics (v3) is an Overview plus four deep pages: `app/(os)/analytics/{page,leads,search,website,cold-email}`.
+  `layout.tsx` is static (title only); `analytics-route.tsx` does access (`lib/analytics/access.ts`, on every page
+  and in `/api/analytics/item`), the cached render per page+range+day+version, and mounts `DetailPanel`.
+  `RangeFrame` is the one sticky row: page tabs (period kept in `?range`) and the period picker; old `#search`-style
+  hashes redirect to their tab. Detail panels open with `openItem()` (history.pushState `?item=page:/x/` or
+  `search:…`; Back closes) and load from `/api/analytics/item` (zod-checked, 401 not redirect, `cachedItem`).
 - `app/sign-in/` — Supabase email + password sign-in. `proxy.ts` refreshes the session (`getClaims`).
 - `lib/auth/session.ts` — `getSession` / `requireUser` / `canSee` (roles: owner, team, opslabs).
 - `lib/db/` — Postgres (`DATABASE_URL`) or embedded PGlite locally; `runMigrations`.
 - `supabase/migrations/` — numbered, re-runnable SQL. All tables in schema `spiral`, RLS on, no grants to
   anon/authenticated. Apply to Supabase with `npm run db:migrate`.
-- `lib/analytics/` — `build.ts` (assembles the view; real vs sample per source), `queries.ts` (core SQL),
+- `lib/analytics/` — `build.ts` (the period view; real vs sample per source), `deep.ts` (period: almost-page-one,
+  movers, competing pages without sitelinks, click rate by position, questions, website sources by site),
+  `long.ts` (range-independent: 16-month search, sign-ups by month/plan, inquiry-month outcomes, backlog,
+  onboarding, sheet health, reply rate by week/month), `items.ts` (detail panels), `insights.ts` (findings:
+  named thresholds, fix/watch/opportunity/good, `topFindings` for the Overview), `queries.ts` (core SQL),
   `details.ts` (plans, lead status, search/page groups, website, cold email funnel and steps, coverage),
   `groups.ts` (plain rules for search and page groups, shown on the page), `sample.ts`, `range.ts`.
-- `components/analytics/` — dashboard, charts, tables, OpsLabs-only connections panel. `lib/tools.ts` — the 10 tools.
+- `components/analytics/` — `dashboard.tsx` (the five page layouts), findings, detail panel, trend cards
+  (StackCard / MonthlyBarsCard / ReplyRateCard, all with a table view), deep sections, charts, tables, OpsLabs-only
+  connections panel (stays on the Overview). New sections show "Shows once X is connected", never sample numbers.
+  `lib/tools.ts` — the 10 tools.
 - `lib/sources/` — one API client per source (plain `fetch`, injected for tests): Google OAuth (PKCE),
   GA4 Data API, Search Console, Gmail, Instantly v2, and the WPForms notification parser. Every endpoint
   and field name comes from the official spec (Google discovery docs, Instantly OpenAPI); cite it in the file.
-- `lib/sync/` — `runSync` runs forms → instantly → gsc → ga4, logging each in `spiral.sync_runs`. A step
+- `lib/sync/` — `runSync` holds a database lease (`lease.ts`, `spiral.sync_state`, heartbeat per step; also
+  progress markers) and runs forms → lead sheet → instantly → gsc → ga4, logging each in `spiral.sync_runs`.
+  `dueSources()` catches up per source (a run cut short by a deploy re-runs only what's missing). A step
   returns "skipped" (sample data stays) when connected but empty. `server.ts` = env config, one-at-a-time
   lock, `after()`, `syncDue()`. Triggered by `/api/cron/sync` (Bearer `CRON_SECRET`), "Sync now", and Google
   connect. `scheduler.ts` (started by `instrumentation.ts` in production) asks `/api/cron/sync?when=due`
   every 10 minutes (once a day after 6 am New York) and warms the cache on start; `self.ts` calls the
   server's own `/api/cron/*` routes, because cached work must run inside a request.
 - Speed: `lib/analytics/index.ts` caches views with `"use cache"`, keyed by range + New York day + data
-  version (newest `sync_runs` time); the page caches the rendered dashboard with the same key, and
-  `/api/cron/warm` builds all ranges after each sync. Keep queries parallel (`Promise.all`) and Recharts
+  version (newest *finished* `sync_runs` time; running steps never clear the cache): `cachedView` per range,
+  `cachedLong` once a day, `cachedItem` per panel. Each page caches its rendered output with the same key, and
+  `/api/cron/warm` builds 28 days first, then the other ranges and the long view, after each sync (it reports
+  heap/RSS; `cacheMaxMemorySize` is 256 MB in next.config.ts). Keep queries parallel (`Promise.all`) and Recharts
   behind `components/analytics/lazy-plots.tsx`. Production: one Railway replica in `iad` (Virginia) beside
   Supabase `us-east-1` (settings live on Railway; `railway.json` is no longer read); `DATABASE_URL` is the session pooler, TLS verified with `lib/db/supabase-ca.ts`.
 - `lib/people.ts` — one record per person: form entries upsert by email, else phone; never blank out data.

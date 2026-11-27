@@ -61,6 +61,9 @@ export async function syncLeadSheet(ctx: SyncContext): Promise<SourceResult> {
         how_found: r.howFound,
         source: r.source,
         person_id: personId,
+        associated: r.associated,
+        whatsapp: r.whatsapp,
+        withdrew: r.withdrew,
       });
     }
     await insertRows(
@@ -80,9 +83,32 @@ export async function syncLeadSheet(ctx: SyncContext): Promise<SourceResult> {
         ["how_found", "text"],
         ["source", "text"],
         ["person_id", "uuid"],
+        ["associated", "boolean"],
+        ["whatsapp", "boolean"],
+        ["withdrew", "boolean"],
       ],
       stored,
       "on conflict do nothing",
+    );
+    // Status history: each lead's status today, stored only when it differs from the last one we
+    // saw. Keyed by email (else phone), because sheet row numbers move when the team sorts.
+    // Today's rows are rebuilt on every run, so a second sync in a day can't leave a stale status.
+    await tx.query("delete from spiral.lead_status_changes where day = $1::date", [ctx.today]);
+    await tx.query(
+      `insert into spiral.lead_status_changes (lead_key, day, status)
+       select k.lead_key, $1::date, k.status
+         from (
+           select distinct on (coalesce(lower(email), phone)) coalesce(lower(email), phone) as lead_key, status
+             from spiral.lead_sheet_rows
+            where kind = 'lead' and status is not null and coalesce(email, phone) is not null
+            order by coalesce(lower(email), phone), day desc nulls last, row_number
+         ) k
+         left join lateral (
+           select c.status from spiral.lead_status_changes c
+            where c.lead_key = k.lead_key and c.day < $1::date order by c.day desc limit 1
+         ) last on true
+        where last.status is distinct from k.status`,
+      [ctx.today],
     );
   });
 

@@ -13,6 +13,10 @@ const nextConfig: NextConfig = {
     turbopackFileSystemCacheForDev: false,
   },
   cacheComponents: true,
+  // Analytics keeps each page's numbers and rendered HTML in memory, per range, for the day
+  // (see lib/analytics/index.ts). The default 50 MB would evict them silently; /api/cron/warm
+  // reports heap use so this can be checked against the real figure.
+  cacheMaxMemorySize: 256 * 1024 * 1024,
   partialPrefetching: true,
   // Embedded Postgres for local development ships a WASM build; keep it out of the bundle.
   serverExternalPackages: ["@electric-sql/pglite"],
